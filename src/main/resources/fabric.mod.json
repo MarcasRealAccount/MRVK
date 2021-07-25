@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "mrvk",
+	"version": "${version}",
+	"name": "MarcasRealAccount's Vulkan",
+	"description": "Makes minecraft render with Vulkan rather than OpenGL",
+	"authors": [
+		"MarcasRealAccount"
+	],
+	"contact": {
+		"homepage": "Sorry",
+		"sources": "None atm."
+	},
+	"license": "MIT",
+	"icon": "assets/mrvk/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+		],
+		"client": [
+			"marcasrealaccount.vulkan.VulkanClient"
+		],
+		"server": [
+		]
+	},
+	"mixins": [
+		"mrvk.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.11.3",
+		"fabric": "*",
+		"minecraft": "1.17.x",
+		"java": ">=16"
+	},
+	"suggests": {
+	}
+}

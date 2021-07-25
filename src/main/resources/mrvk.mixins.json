@@ -1,0 +1,21 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "marcasrealaccount.vulkan.mixins",
+	"compatibilityLevel": "JAVA_16",
+	"mixins": [
+	],
+	"client": [
+		"com.mojang.blaze3d.platform.MixinGlStateManager",
+		"com.mojang.blaze3d.platform.MixinTextureUtil",
+		"com.mojang.blaze3d.systems.MixinRenderSystem",
+		"net.minecraft.client.MixinMinecraftClient",
+		"net.minecraft.client.util.MixinWindow",
+		"net.minecraft.client.gl.MixinGlDebug"
+	],
+	"server": [
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
