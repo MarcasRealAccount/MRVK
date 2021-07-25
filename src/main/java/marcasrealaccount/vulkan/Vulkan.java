@@ -12,6 +12,8 @@ import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 
+import com.google.common.collect.Lists;
+
 import marcasrealaccount.vulkan.instance.VulkanDevice;
 import marcasrealaccount.vulkan.instance.VulkanInstance;
 import marcasrealaccount.vulkan.instance.VulkanPhysicalDevice;
@@ -30,6 +32,8 @@ import marcasrealaccount.vulkan.instance.synchronize.VulkanFence;
 import marcasrealaccount.vulkan.instance.synchronize.VulkanSemaphore;
 import marcasrealaccount.vulkan.util.VulkanClearColorFloat;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
+import marcasrealaccount.vulkan.util.VulkanScissor;
+import marcasrealaccount.vulkan.util.VulkanViewport;
 import net.minecraft.client.util.Window;
 
 public class Vulkan {
@@ -305,13 +309,12 @@ public class Vulkan {
 				.add(new VulkanGraphicsPipeline.VulkanShaderStage(EShaderStage.VERTEX, vertexShaderModule, "main"));
 		graphicsPipeline.shaderStages
 				.add(new VulkanGraphicsPipeline.VulkanShaderStage(EShaderStage.FRAGMENT, fragmentShaderModule, "main"));
-		graphicsPipeline.viewportState.viewports.add(new VulkanGraphicsPipeline.ViewportState.Viewport(0.0f, 0.0f,
-				this.swapchain.getExtent().width, this.swapchain.getExtent().height, 0.0f, 1.0f));
-		graphicsPipeline.viewportState.scissors.add(new VulkanGraphicsPipeline.ViewportState.Scissor(0, 0,
-				this.swapchain.getExtent().width, this.swapchain.getExtent().height));
+		graphicsPipeline.viewportState.viewports
+				.add(new VulkanGraphicsPipeline.ViewportState.Viewport(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f));
+		graphicsPipeline.viewportState.scissors.add(new VulkanGraphicsPipeline.ViewportState.Scissor(0, 0, 0, 0));
 		graphicsPipeline.colorBlendState.attachments.add(new VulkanGraphicsPipeline.ColorBlendState.Attachment());
-//		graphicsPipeline.dynamicState.states
-//				.addAll(Lists.newArrayList(VK12.VK_DYNAMIC_STATE_VIEWPORT, VK12.VK_DYNAMIC_STATE_LINE_WIDTH));
+		graphicsPipeline.dynamicState.states.addAll(Lists.newArrayList(VK12.VK_DYNAMIC_STATE_VIEWPORT,
+				VK12.VK_DYNAMIC_STATE_SCISSOR, VK12.VK_DYNAMIC_STATE_LINE_WIDTH));
 		if (!graphicsPipelineLayout.create())
 			throw new RuntimeException("Failed to create Vulkan PipelineLayout");
 		if (!graphicsPipeline.create())
@@ -325,6 +328,11 @@ public class Vulkan {
 						this.swapchain.getExtent().width, this.swapchain.getExtent().height,
 						new VulkanClearValue[] { new VulkanClearColorFloat(0.1f, 0.1f, 0.1f, 1.0f) });
 
+				currentCommandBuffer.cmdSetViewports(0, new VulkanViewport[] { new VulkanViewport(0.0f, 0.0f,
+						this.swapchain.getExtent().width, this.swapchain.getExtent().height) });
+				currentCommandBuffer.cmdSetScissors(0, new VulkanScissor[] {
+						new VulkanScissor(0, 0, this.swapchain.getExtent().width, this.swapchain.getExtent().height) });
+				currentCommandBuffer.cmdSetLineWidth(1.0f);
 				currentCommandBuffer.cmdBindPipeline(graphicsPipeline);
 				currentCommandBuffer.cmdDraw(3, 1, 0, 0);
 

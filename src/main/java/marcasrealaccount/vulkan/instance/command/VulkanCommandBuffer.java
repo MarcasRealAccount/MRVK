@@ -7,6 +7,7 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
 import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
+import org.lwjgl.vulkan.VkViewport;
 
 import marcasrealaccount.vulkan.instance.VulkanDevice;
 import marcasrealaccount.vulkan.instance.VulkanHandle;
@@ -14,6 +15,8 @@ import marcasrealaccount.vulkan.instance.image.VulkanFramebuffer;
 import marcasrealaccount.vulkan.instance.pipeline.VulkanPipeline;
 import marcasrealaccount.vulkan.instance.pipeline.VulkanRenderPass;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
+import marcasrealaccount.vulkan.util.VulkanScissor;
+import marcasrealaccount.vulkan.util.VulkanViewport;
 
 public class VulkanCommandBuffer extends VulkanHandle<VkCommandBuffer> {
 	public final VulkanDevice device;
@@ -82,5 +85,39 @@ public class VulkanCommandBuffer extends VulkanHandle<VkCommandBuffer> {
 
 	public void cmdDraw(int vertexCount, int instanceCount, int firstVertex, int firstInstance) {
 		VK12.vkCmdDraw(this.handle, vertexCount, instanceCount, firstVertex, firstInstance);
+	}
+
+	public void cmdSetViewports(int firstViewport, VulkanViewport[] viewports) {
+		try (var stack = MemoryStack.stackPush()) {
+			var pViewports = VkViewport.mallocStack(viewports.length, stack);
+
+			for (int i = 0; i < viewports.length; ++i) {
+				var viewport = viewports[i];
+				var pViewport = pViewports.get(i);
+				pViewport.set(viewport.x, viewport.y, viewport.width, viewport.height, viewport.minDepth,
+						viewport.maxDepth);
+			}
+
+			VK12.vkCmdSetViewport(this.handle, firstViewport, pViewports);
+		}
+	}
+
+	public void cmdSetScissors(int firstScissor, VulkanScissor[] scissors) {
+		try (var stack = MemoryStack.stackPush()) {
+			var pScissors = VkRect2D.mallocStack(scissors.length, stack);
+
+			for (int i = 0; i < scissors.length; ++i) {
+				var scissor = scissors[i];
+				var pScissor = pScissors.get(i);
+				pScissor.offset().set(scissor.x, scissor.y);
+				pScissor.extent().set(scissor.width, scissor.height);
+			}
+
+			VK12.vkCmdSetScissor(this.handle, firstScissor, pScissors);
+		}
+	}
+
+	public void cmdSetLineWidth(float lineWidth) {
+		VK12.vkCmdSetLineWidth(this.handle, lineWidth);
 	}
 }
