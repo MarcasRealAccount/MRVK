@@ -317,48 +317,6 @@ public class Vulkan {
 		if (!graphicsPipeline.create())
 			throw new RuntimeException("Failed to create Vulkan GraphicsPipeline");
 
-//		try (var stack = MemoryStack.stackPush()) {
-//			var beginInfo = VkCommandBufferBeginInfo.mallocStack(stack);
-//			var renderPassBeginInfo = VkRenderPassBeginInfo.mallocStack(stack);
-//			var renderArea = VkRect2D.mallocStack(stack);
-//			var pClearColor = VkClearValue.mallocStack(1, stack);
-//			var clearColor = pClearColor.get(0);
-//
-//			beginInfo.set(VK12.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, 0, null);
-//
-//			renderArea.offset().set(0, 0);
-//			renderArea.extent().set(this.swapchain.getExtent().width, this.swapchain.getExtent().height);
-//
-//			clearColor.color().float32(0, 0.1f);
-//			clearColor.color().float32(1, 0.1f);
-//			clearColor.color().float32(2, 0.1f);
-//			clearColor.color().float32(3, 1.0f);
-//
-//			for (int i = 0; i < Vulkan.INSTANCE.getSwapchain().getNumImages(); ++i) {
-//				var framebuffer = Vulkan.INSTANCE.getFramebuffer(i);
-//				var commandBuffer = Vulkan.INSTANCE.getCommandBuffer(i);
-//
-//				renderPassBeginInfo.set(VK12.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, 0,
-//						Vulkan.INSTANCE.getRenderPass().getHandle(), framebuffer.getHandle(), renderArea, pClearColor);
-//
-//				if (VK12.vkBeginCommandBuffer(commandBuffer.getHandle(), beginInfo) != VK12.VK_SUCCESS)
-//					throw new RuntimeException("Failed to begin Vulkan CommandBuffer");
-//
-//				VK12.vkCmdBeginRenderPass(commandBuffer.getHandle(), renderPassBeginInfo,
-//						VK12.VK_SUBPASS_CONTENTS_INLINE);
-//
-//				VK12.vkCmdBindPipeline(commandBuffer.getHandle(), VK12.VK_PIPELINE_BIND_POINT_GRAPHICS,
-//						graphicsPipeline.getHandle());
-//
-//				VK12.vkCmdDraw(commandBuffer.getHandle(), 3, 1, 0, 0);
-//
-//				VK12.vkCmdEndRenderPass(commandBuffer.getHandle());
-//
-//				if (VK12.vkEndCommandBuffer(commandBuffer.getHandle()) != VK12.VK_SUCCESS)
-//					throw new RuntimeException("Failed to end Vulkan CommandBuffer");
-//			}
-//		}
-
 		while (!window.shouldClose()) {
 			var currentCommandPool = getCommandPool(this.currentFrame);
 			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
