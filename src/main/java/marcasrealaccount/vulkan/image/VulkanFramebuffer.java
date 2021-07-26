@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.image;
+package marcasrealaccount.vulkan.image;
 
 import java.util.ArrayList;
 
@@ -7,9 +7,9 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanRenderPass;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
+import marcasrealaccount.vulkan.pipeline.VulkanRenderPass;
 
 public class VulkanFramebuffer extends VulkanHandle<Long> {
 	public final VulkanDevice device;
@@ -27,6 +27,9 @@ public class VulkanFramebuffer extends VulkanHandle<Long> {
 		super(0L);
 		this.device = device;
 		this.renderPass = renderPass;
+
+		this.device.addChild(this);
+		this.renderPass.addChild(this);
 	}
 
 	@Override
@@ -44,10 +47,8 @@ public class VulkanFramebuffer extends VulkanHandle<Long> {
 
 			if (VK12.vkCreateFramebuffer(this.device.getHandle(), createInfo, null, pFramebuffer) == VK12.VK_SUCCESS) {
 				this.handle = pFramebuffer.get(0);
-				this.device.addInvalidate(this);
-				this.renderPass.addInvalidate(this);
 				for (var attachment : this.attachments) {
-					attachment.addInvalidate(this);
+					attachment.addChild(this);
 					this.usedAttachments.add(attachment);
 				}
 			}
@@ -57,14 +58,16 @@ public class VulkanFramebuffer extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyFramebuffer(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated) {
-			this.device.removeInvalidate(this);
-			this.renderPass.removeInvalidate(this);
-			for (var attachment : this.usedAttachments)
-				attachment.removeInvalidate(this);
-		}
+		for (var attachment : this.usedAttachments)
+			attachment.removeChild(this);
 		this.usedAttachments.clear();
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
+		this.renderPass.removeChild(this);
 	}
 }

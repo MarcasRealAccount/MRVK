@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.image;
+package marcasrealaccount.vulkan.image;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK12;
@@ -6,8 +6,8 @@ import org.lwjgl.vulkan.VkComponentMapping;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkImageViewCreateInfo;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 import marcasrealaccount.vulkan.util.VulkanComponentMapping;
 import marcasrealaccount.vulkan.util.VulkanImageSubresourceRange;
 
@@ -26,6 +26,9 @@ public class VulkanImageView extends VulkanHandle<Long> {
 		super(0L);
 		this.device = device;
 		this.image = image;
+
+		this.device.addChild(this);
+		this.image.addChild(this);
 	}
 
 	@Override
@@ -45,21 +48,20 @@ public class VulkanImageView extends VulkanHandle<Long> {
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, 0, 0, this.image.getHandle(),
 					this.viewType.getValue(), this.format, comps, sub);
 
-			if (VK12.vkCreateImageView(this.device.getHandle(), createInfo, null, pView) == VK12.VK_SUCCESS) {
+			if (VK12.vkCreateImageView(this.device.getHandle(), createInfo, null, pView) == VK12.VK_SUCCESS)
 				this.handle = pView.get(0);
-				this.device.addInvalidate(this);
-				this.image.addInvalidate(this);
-			}
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyImageView(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated) {
-			this.device.removeInvalidate(this);
-			this.image.removeInvalidate(this);
-		}
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
+		this.image.removeChild(this);
 	}
 
 	public enum EViewType {

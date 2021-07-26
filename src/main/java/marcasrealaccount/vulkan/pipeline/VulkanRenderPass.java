@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.pipeline;
+package marcasrealaccount.vulkan.pipeline;
 
 import java.util.ArrayList;
 
@@ -12,8 +12,8 @@ import org.lwjgl.vulkan.VkRenderPassCreateInfo;
 import org.lwjgl.vulkan.VkSubpassDependency;
 import org.lwjgl.vulkan.VkSubpassDescription;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 
 public class VulkanRenderPass extends VulkanHandle<Long> {
 	public final VulkanDevice device;
@@ -25,6 +25,8 @@ public class VulkanRenderPass extends VulkanHandle<Long> {
 	public VulkanRenderPass(VulkanDevice device) {
 		super(0L);
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -98,10 +100,8 @@ public class VulkanRenderPass extends VulkanHandle<Long> {
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, 0, 0, pAttachments, pSubpasses,
 					pDependencies);
 
-			if (VK12.vkCreateRenderPass(this.device.getHandle(), createInfo, null, pRenderPass) == VK12.VK_SUCCESS) {
+			if (VK12.vkCreateRenderPass(this.device.getHandle(), createInfo, null, pRenderPass) == VK12.VK_SUCCESS)
 				this.handle = pRenderPass.get(0);
-				this.device.addInvalidate(this);
-			}
 
 			pAttachments.free();
 			for (var subpass : pSubpasses) {
@@ -119,10 +119,13 @@ public class VulkanRenderPass extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyRenderPass(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated)
-			this.device.removeInvalidate(this);
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public static class Attachment {

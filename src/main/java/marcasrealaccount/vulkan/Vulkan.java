@@ -9,30 +9,34 @@ import org.lwjgl.util.shaderc.Shaderc;
 import org.lwjgl.vulkan.EXTDebugUtils;
 import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.VK12;
+import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 
 import com.google.common.collect.Lists;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
+import marcasrealaccount.vulkan.command.VulkanCommandBuffer;
+import marcasrealaccount.vulkan.command.VulkanCommandPool;
+import marcasrealaccount.vulkan.debug.VulkanDebug;
+import marcasrealaccount.vulkan.device.VulkanDevice;
+import marcasrealaccount.vulkan.device.VulkanPhysicalDevice;
+import marcasrealaccount.vulkan.device.VulkanQueue;
+import marcasrealaccount.vulkan.image.VulkanFramebuffer;
+import marcasrealaccount.vulkan.image.VulkanImageView;
 import marcasrealaccount.vulkan.instance.VulkanInstance;
-import marcasrealaccount.vulkan.instance.VulkanPhysicalDevice;
-import marcasrealaccount.vulkan.instance.VulkanSurface;
-import marcasrealaccount.vulkan.instance.VulkanSwapchain;
-import marcasrealaccount.vulkan.instance.command.VulkanCommandBuffer;
-import marcasrealaccount.vulkan.instance.command.VulkanCommandPool;
-import marcasrealaccount.vulkan.instance.debug.VulkanDebug;
-import marcasrealaccount.vulkan.instance.image.VulkanFramebuffer;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanGraphicsPipeline;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanGraphicsPipeline.VulkanShaderStage.EShaderStage;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanPipelineLayout;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanRenderPass;
-import marcasrealaccount.vulkan.instance.shader.VulkanShaderModule;
-import marcasrealaccount.vulkan.instance.synchronize.VulkanFence;
-import marcasrealaccount.vulkan.instance.synchronize.VulkanSemaphore;
+import marcasrealaccount.vulkan.pipeline.VulkanPipelineLayout;
+import marcasrealaccount.vulkan.pipeline.VulkanRenderPass;
+import marcasrealaccount.vulkan.shader.VulkanGraphicsPipeline;
+import marcasrealaccount.vulkan.shader.VulkanShaderModule;
+import marcasrealaccount.vulkan.shader.VulkanGraphicsPipeline.VulkanShaderStage.EShaderStage;
+import marcasrealaccount.vulkan.surface.VulkanSurface;
+import marcasrealaccount.vulkan.surface.VulkanSwapchain;
+import marcasrealaccount.vulkan.sync.VulkanFence;
+import marcasrealaccount.vulkan.sync.VulkanSemaphore;
 import marcasrealaccount.vulkan.util.VulkanClearColorFloat;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
 import marcasrealaccount.vulkan.util.VulkanScissor;
+import marcasrealaccount.vulkan.util.VulkanSurfaceFormat;
 import marcasrealaccount.vulkan.util.VulkanViewport;
 import net.minecraft.client.util.Window;
 
@@ -42,12 +46,20 @@ public class Vulkan {
 
 	private VulkanInstance instance = new VulkanInstance();
 	private VulkanDebug debug = new VulkanDebug(this.instance);
-	private VulkanSurface surface = new VulkanSurface(this.instance, null);
-	private VulkanPhysicalDevice physicalDevice = null;
-	private VulkanDevice device = null;
+	private VulkanSurface surface = new VulkanSurface(this.instance);
+	private VulkanPhysicalDevice physicalDevice = new VulkanPhysicalDevice(this.instance, this.surface);
+	private VulkanDevice device = new VulkanDevice(this.physicalDevice);
+	private VulkanQueue graphicsQueue = new VulkanQueue(this.device);
+	private VulkanQueue presentQueue = new VulkanQueue(this.device);
 
-	private VulkanSwapchain swapchain = null;
-	private VulkanRenderPass renderPass = null;
+	private Window window = null;
+	private boolean vsync = false, minimized = false;
+	private VulkanSurfaceFormat format = null;
+
+	private boolean recreateSwapchain = false;
+	private VulkanSwapchain swapchain = new VulkanSwapchain(this.device);
+	private VulkanRenderPass renderPass = new VulkanRenderPass(this.device);
+	private final ArrayList<VulkanImageView> imageViews = new ArrayList<>();
 	private final ArrayList<VulkanFramebuffer> framebuffers = new ArrayList<>();
 
 	private final ArrayList<VulkanCommandPool> commandPools = new ArrayList<>();
@@ -58,17 +70,32 @@ public class Vulkan {
 	private int currentImage = 0;
 	private int currentFrame = 0;
 
+	public void setMinimized(boolean minimized) {
+		this.minimized = minimized;
+	}
+
 	public void setVSync(boolean vsync) {
-		if (this.swapchain != null)
-			this.swapchain.setVSync(vsync);
+		if (this.vsync != vsync)
+			this.recreateSwapchain = true;
+		this.vsync = vsync;
+	}
+
+	public void recreateSwapchain() {
+		this.recreateSwapchain = true;
 	}
 
 	public void initVulkan(Window window, boolean vsync) {
+		this.window = window;
+		this.vsync = vsync;
+
 		if (Reference.USE_VALIDATION_LAYERS)
 			if (!this.instance.useLayer("VK_LAYER_KHRONOS_validation", 0))
 				VulkanDebug.disable();
 			else
 				this.instance.useExtension(EXTDebugUtils.VK_EXT_DEBUG_UTILS_EXTENSION_NAME, 0);
+
+		this.surface.setWindow(window);
+		this.physicalDevice.scorer = Vulkan::scorePhysicalDevice;
 
 		{
 			var glfwExtensions = GLFWVulkan.glfwGetRequiredInstanceExtensions();
@@ -88,80 +115,44 @@ public class Vulkan {
 
 		if (!this.instance.create())
 			throw new RuntimeException("Failed to create Vulkan Instance");
-
 		if (VulkanDebug.isEnabled())
 			this.debug.create();
-
-		this.surface.setWindow(window);
 		if (!this.surface.create())
 			throw new RuntimeException("Failed to create Vulkan Surface");
-
-		this.physicalDevice = VulkanPhysicalDevice.pickBestPhysicalDevice(this.instance, this.surface,
-				Vulkan::scorePhysicalDevice);
-		if (this.physicalDevice == null)
+		if (!this.physicalDevice.create())
 			throw new RuntimeException("Failed to find a suitable GPU");
 
-		this.device = new VulkanDevice(this.physicalDevice);
 		if (!this.device.useExtension(KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME, 0))
 			throw new RuntimeException("Missing Vulkan KHRSwapchan extension");
 
 		if (!this.device.create())
 			throw new RuntimeException("Failed to create Vulkan Device");
 
-		this.swapchain = new VulkanSwapchain(this.device, window, vsync);
-		if (!this.swapchain.create())
-			throw new RuntimeException("Failed to create Vulkan Swapchain");
+		var indices = this.physicalDevice.getIndices();
+		this.graphicsQueue.queueFamilyIndex = indices.graphicsFamily.get();
+		this.presentQueue.queueFamilyIndex = indices.presentFamily.get();
 
-		this.renderPass = new VulkanRenderPass(this.device);
-		{
-			var attachment = new VulkanRenderPass.Attachment();
-			attachment.format = this.swapchain.getFormat().format;
-			this.renderPass.attachments.add(attachment);
+		if (!this.graphicsQueue.create())
+			throw new RuntimeException("Failed to create Graphics Queue");
+		if (!this.presentQueue.create())
+			throw new RuntimeException("Failed to create Present Queue");
 
-			var subpass = new VulkanRenderPass.Subpass();
-			var attachmentRef = new VulkanRenderPass.Subpass.AttachmentRef();
-			attachmentRef.attachment = 0;
-			attachmentRef.layout = VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			subpass.colorAttachmentRefs.add(attachmentRef);
-			this.renderPass.subpasses.add(subpass);
-
-			var dependency = new VulkanRenderPass.Dependency();
-			dependency.srcSubpass = VK12.VK_SUBPASS_EXTERNAL;
-			dependency.dstSubpass = 0;
-			dependency.srcStageMask = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependency.srcAccessMask = 0;
-			dependency.dstStageMask = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependency.dstAccessMask = VK12.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			this.renderPass.dependencies.add(dependency);
-		}
-		if (!this.renderPass.create())
-			throw new RuntimeException("Failed to create Vulkan RenderPass");
-
-		this.framebuffers.ensureCapacity(this.swapchain.getNumImages());
-		for (int i = 0; i < this.swapchain.getNumImages(); ++i) {
-			var framebuffer = new VulkanFramebuffer(this.device, this.renderPass);
-			framebuffer.attachments.add(this.swapchain.getImageView(i));
-			framebuffer.width = this.swapchain.getExtent().width;
-			framebuffer.height = this.swapchain.getExtent().height;
-			if (!framebuffer.create())
-				throw new RuntimeException("Failed to create Vulkan Framebuffers");
-			this.framebuffers.add(framebuffer);
-		}
+		createSwapchain();
 
 		this.commandPools.ensureCapacity(MAX_FRAMES_IN_FLIGHT);
 		this.imageAvailableSemaphores.ensureCapacity(MAX_FRAMES_IN_FLIGHT);
 		this.renderFinishedSemaphores.ensureCapacity(MAX_FRAMES_IN_FLIGHT);
 		this.inFlightFences.ensureCapacity(MAX_FRAMES_IN_FLIGHT);
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-			VulkanCommandPool commandPool = new VulkanCommandPool(this.device);
+			var commandPool = new VulkanCommandPool(this.device);
 			if (!commandPool.create())
 				throw new RuntimeException("Failed to create Vulkan Command Pool");
 			commandPool.allocateBuffers(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 			this.commandPools.add(commandPool);
 
-			VulkanSemaphore ias = new VulkanSemaphore(this.device);
-			VulkanSemaphore rfs = new VulkanSemaphore(this.device);
-			VulkanFence iff = new VulkanFence(this.device);
+			var ias = new VulkanSemaphore(this.device);
+			var rfs = new VulkanSemaphore(this.device);
+			var iff = new VulkanFence(this.device);
 			iff.signaled = true;
 			if (!ias.create())
 				throw new RuntimeException("Failed to create Vulkan Semaphore");
@@ -174,19 +165,114 @@ public class Vulkan {
 			this.renderFinishedSemaphores.add(rfs);
 			this.inFlightFences.add(iff);
 		}
+	}
 
+	private void createSwapchain() {
+		for (var imageView : this.imageViews) {
+			imageView.destroy();
+			imageView.remove();
+		}
+		this.imageViews.clear();
+
+		for (var framebuffer : this.framebuffers) {
+			framebuffer.destroy();
+			framebuffer.remove();
+		}
+		this.framebuffers.clear();
+
+		this.physicalDevice.update();
+
+		var oldFormat = this.format;
+		var swapchainSupportDetails = this.physicalDevice.getSwapchainSupportDetails();
+		this.format = swapchainSupportDetails.getSwapchainFormat();
+		var extent = swapchainSupportDetails.getSwapchainExtent(this.window);
+
+		if ((oldFormat == null && this.format != null) || (!oldFormat.equals(this.format))) {
+			{
+				this.renderPass.attachments.clear();
+				this.renderPass.subpasses.clear();
+				this.renderPass.dependencies.clear();
+
+				var attachment = new VulkanRenderPass.Attachment();
+				attachment.format = this.format.format;
+				this.renderPass.attachments.add(attachment);
+
+				var subpass = new VulkanRenderPass.Subpass();
+				var attachmentRef = new VulkanRenderPass.Subpass.AttachmentRef();
+				attachmentRef.attachment = 0;
+				attachmentRef.layout = VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				subpass.colorAttachmentRefs.add(attachmentRef);
+				this.renderPass.subpasses.add(subpass);
+
+				var dependency = new VulkanRenderPass.Dependency();
+				dependency.srcSubpass = VK12.VK_SUBPASS_EXTERNAL;
+				dependency.dstSubpass = 0;
+				dependency.srcStageMask = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				dependency.srcAccessMask = 0;
+				dependency.dstStageMask = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				dependency.dstAccessMask = VK12.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				this.renderPass.dependencies.add(dependency);
+			}
+			if (!this.renderPass.create())
+				throw new RuntimeException("Failed to create Vulkan RenderPass");
+		}
+
+		this.swapchain.imageCount = Math.min(swapchainSupportDetails.capabilities.minImageCount + 1,
+				swapchainSupportDetails.capabilities.maxImageCount);
+		this.swapchain.preTransform = swapchainSupportDetails.capabilities.currentTransform;
+		this.swapchain.format = this.format.format;
+		this.swapchain.colorSpace = this.format.colorSpace;
+		this.swapchain.presentMode = swapchainSupportDetails.getSwapchainPresentMode(this.vsync);
+		this.swapchain.width = extent.width;
+		this.swapchain.height = extent.height;
+		var indices = this.physicalDevice.getIndices();
+		this.swapchain.indices.clear();
+		this.swapchain.indices.add(indices.graphicsFamily.get());
+		this.swapchain.indices.add(indices.presentFamily.get());
+		if (!this.swapchain.create())
+			throw new RuntimeException("Failed to create Vulkan Swapchain");
+
+		this.imageViews.ensureCapacity(this.swapchain.getNumImages());
+		this.framebuffers.ensureCapacity(this.swapchain.getNumImages());
+		for (int i = 0; i < this.swapchain.getNumImages(); ++i) {
+			var imageView = new VulkanImageView(this.device, this.swapchain.getImage(i));
+			imageView.format = this.format.format;
+			if (!imageView.create())
+				throw new RuntimeException("Failed to create Vulkan ImageView");
+			this.imageViews.add(imageView);
+
+			var framebuffer = new VulkanFramebuffer(this.device, this.renderPass);
+			framebuffer.attachments.add(imageView);
+			framebuffer.width = this.swapchain.width;
+			framebuffer.height = this.swapchain.height;
+			if (!framebuffer.create())
+				throw new RuntimeException("Failed to create Vulkan Framebuffers");
+			this.framebuffers.add(framebuffer);
+		}
+
+		this.imagesInFlight.clear();
 		this.imagesInFlight.ensureCapacity(this.swapchain.getNumImages());
 		for (int i = 0; i < this.swapchain.getNumImages(); ++i)
 			this.imagesInFlight.add(null);
+
+		this.recreateSwapchain = false;
 	}
 
-	public void close() {
+	public void destroy() {
 		VK12.vkDeviceWaitIdle(this.device.getHandle());
 
-		this.instance.close();
+		this.instance.destroy();
 	}
 
 	public void beginFrame() {
+		if (this.minimized) {
+			this.commandPools.get(this.currentFrame).reset();
+			return;
+		}
+
+		if (this.recreateSwapchain)
+			createSwapchain();
+
 		try (var stack = MemoryStack.stackPush()) {
 			var imageIndex = stack.mallocInt(1);
 
@@ -194,8 +280,17 @@ public class Vulkan {
 					-1);
 			VK12.vkResetFences(this.device.getHandle(), this.inFlightFences.get(this.currentFrame).getHandle());
 
-			KHRSwapchain.vkAcquireNextImageKHR(this.device.getHandle(), this.swapchain.getHandle(), -1,
+			var result = KHRSwapchain.vkAcquireNextImageKHR(this.device.getHandle(), this.swapchain.getHandle(), -1,
 					this.imageAvailableSemaphores.get(this.currentFrame).getHandle(), 0, imageIndex);
+
+			if (result == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
+				createSwapchain();
+				beginFrame();
+				return;
+			} else if (result != VK12.VK_SUCCESS && result != KHRSwapchain.VK_SUBOPTIMAL_KHR) {
+				throw new RuntimeException("Failed to acquire next Vulkan Swapchain image");
+			}
+
 			this.currentImage = imageIndex.get(0);
 
 			if (this.imagesInFlight.get(this.currentImage) != null)
@@ -209,17 +304,27 @@ public class Vulkan {
 	}
 
 	public void endFrame() {
+		if (this.minimized)
+			return;
+
 		var waitSemaphores = new VulkanSemaphore[] { this.imageAvailableSemaphores.get(this.currentFrame) };
 		var signalSemaphores = new VulkanSemaphore[] { this.renderFinishedSemaphores.get(this.currentFrame) };
 
-		this.device.getGraphicsQueue().submitCommandBuffers(
+		this.graphicsQueue.submitCommandBuffers(
 				this.commandPools.get(this.currentFrame).getCommandBuffers().toArray(new VulkanCommandBuffer[0]),
 				waitSemaphores, signalSemaphores, new int[] { VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
 				this.inFlightFences.get(this.currentFrame));
 
-		this.device.getPresentQueue().present(new VulkanSwapchain[] { this.swapchain }, new int[] { this.currentImage },
-				signalSemaphores);
-		this.device.getPresentQueue().waitIdle();
+		var result = this.presentQueue.present(new VulkanSwapchain[] { this.swapchain },
+				new int[] { this.currentImage }, signalSemaphores)[0];
+		if (result == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || result == KHRSwapchain.VK_SUBOPTIMAL_KHR) {
+			createSwapchain();
+			return;
+		} else if (result != VK12.VK_SUCCESS) {
+			throw new RuntimeException("Failed to present to Vulkan Swapchain");
+		}
+
+		this.presentQueue.waitIdle();
 
 		this.currentFrame = (this.currentFrame + 1) % Vulkan.MAX_FRAMES_IN_FLIGHT;
 	}
@@ -321,17 +426,20 @@ public class Vulkan {
 			throw new RuntimeException("Failed to create Vulkan GraphicsPipeline");
 
 		while (!window.shouldClose()) {
+			GLFW.glfwPollEvents();
+			beginFrame();
+
 			var currentCommandPool = getCommandPool(this.currentFrame);
 			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
 			if (currentCommandBuffer.begin()) {
 				currentCommandBuffer.cmdBeginRenderPass(this.renderPass, this.framebuffers.get(this.currentImage), 0, 0,
-						this.swapchain.getExtent().width, this.swapchain.getExtent().height,
+						this.swapchain.width, this.swapchain.height,
 						new VulkanClearValue[] { new VulkanClearColorFloat(0.1f, 0.1f, 0.1f, 1.0f) });
 
-				currentCommandBuffer.cmdSetViewports(0, new VulkanViewport[] { new VulkanViewport(0.0f, 0.0f,
-						this.swapchain.getExtent().width, this.swapchain.getExtent().height) });
-				currentCommandBuffer.cmdSetScissors(0, new VulkanScissor[] {
-						new VulkanScissor(0, 0, this.swapchain.getExtent().width, this.swapchain.getExtent().height) });
+				currentCommandBuffer.cmdSetViewports(0, new VulkanViewport[] {
+						new VulkanViewport(0.0f, 0.0f, this.swapchain.width, this.swapchain.height) });
+				currentCommandBuffer.cmdSetScissors(0,
+						new VulkanScissor[] { new VulkanScissor(0, 0, this.swapchain.width, this.swapchain.height) });
 				currentCommandBuffer.cmdSetLineWidth(1.0f);
 				currentCommandBuffer.cmdBindPipeline(graphicsPipeline);
 				currentCommandBuffer.cmdDraw(3, 1, 0, 0);
@@ -340,12 +448,10 @@ public class Vulkan {
 				currentCommandBuffer.end();
 			}
 
-			GLFW.glfwPollEvents();
 			endFrame();
-			beginFrame();
 		}
 
-		close();
+		destroy();
 		System.exit(0);
 	}
 
@@ -399,15 +505,15 @@ public class Vulkan {
 				: null;
 	}
 
-	private static long scorePhysicalDevice(VulkanPhysicalDevice physicalDevice) {
+	private static long scorePhysicalDevice(VkPhysicalDevice physicalDevice) {
 		long score = 0;
 
 		try (var stack = MemoryStack.stackPush()) {
 			var deviceProperties = VkPhysicalDeviceProperties.mallocStack(stack);
 			var deviceFeatures = VkPhysicalDeviceFeatures.mallocStack(stack);
 
-			VK12.vkGetPhysicalDeviceProperties(physicalDevice.getHandle(), deviceProperties);
-			VK12.vkGetPhysicalDeviceFeatures(physicalDevice.getHandle(), deviceFeatures);
+			VK12.vkGetPhysicalDeviceProperties(physicalDevice, deviceProperties);
+			VK12.vkGetPhysicalDeviceFeatures(physicalDevice, deviceFeatures);
 
 			switch (deviceProperties.deviceType()) {
 			case VK12.VK_PHYSICAL_DEVICE_TYPE_CPU:

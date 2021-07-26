@@ -29,6 +29,8 @@ public abstract class MixinWindow {
 	private static final String GL_CREATE_CAPABILITIES_METHOD = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;";
 
 	@Shadow
+	private long handle;
+	@Shadow
 	private boolean vsync;
 
 	@Inject(at = @At(value = "INVOKE", target = GLFW_CREATE_WINDOW_METHOD, ordinal = 0), method = INITIALIZER_METHOD)
@@ -41,7 +43,6 @@ public abstract class MixinWindow {
 	@Redirect(at = @At(value = "INVOKE", target = GLFW_MAKE_CONTEXT_CURRENT_METHOD, ordinal = 0), method = INITIALIZER_METHOD)
 	private void initializerInitVulkan(long window) {
 		Vulkan.INSTANCE.initVulkan((Window) (Object) this, this.vsync);
-		Vulkan.INSTANCE.beginFrame();
 	}
 
 	@Redirect(at = @At(value = "INVOKE", target = GL_CREATE_CAPABILITIES_METHOD, ordinal = 0), method = INITIALIZER_METHOD)
@@ -51,17 +52,23 @@ public abstract class MixinWindow {
 
 	@Inject(at = @At(value = "TAIL"), method = INITIALIZER_METHOD)
 	private void initializerRunVulkanTest(CallbackInfo info) {
+		GLFW.glfwSetWindowIconifyCallback(this.handle, this::onWindowMinimized);
+
 		Vulkan.INSTANCE.testVulkan((Window) (Object) this);
 	}
 
 	@Inject(at = @At(value = "INVOKE", target = GLFW_FREE_CALLBACKS_METHOD, ordinal = 0), method = CLOSE_METHOD)
 	private void closeVulkan(CallbackInfo info) {
-		Vulkan.INSTANCE.close();
+		Vulkan.INSTANCE.destroy();
 	}
 
 	@Redirect(at = @At(value = "INVOKE", target = GLFW_SWAP_INTERVAL_METHOD, ordinal = 0), method = SET_VSYNC_METHOD)
 	private void setInterval(int interval) {
 		Vulkan.INSTANCE.setVSync(interval != 0);
+	}
+
+	private void onWindowMinimized(long window, boolean minimized) {
+		Vulkan.INSTANCE.setMinimized(minimized);
 	}
 
 	@Shadow

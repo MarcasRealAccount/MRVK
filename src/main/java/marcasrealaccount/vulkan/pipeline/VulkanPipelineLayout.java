@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.pipeline;
+package marcasrealaccount.vulkan.pipeline;
 
 import java.util.ArrayList;
 
@@ -8,8 +8,8 @@ import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkPipelineLayoutCreateInfo;
 import org.lwjgl.vulkan.VkPushConstantRange;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 
 public class VulkanPipelineLayout extends VulkanHandle<Long> {
 	public final VulkanDevice device;
@@ -22,6 +22,8 @@ public class VulkanPipelineLayout extends VulkanHandle<Long> {
 	public VulkanPipelineLayout(VulkanDevice device) {
 		super(0L);
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -46,9 +48,8 @@ public class VulkanPipelineLayout extends VulkanHandle<Long> {
 			if (VK12.vkCreatePipelineLayout(this.device.getHandle(), createInfo, null,
 					pPipelineLayout) == VK12.VK_SUCCESS) {
 				this.handle = pPipelineLayout.get(0);
-				this.device.addInvalidate(this);
 				for (var setLayout : this.setLayouts) {
-					setLayout.addInvalidate(this);
+					setLayout.addChild(this);
 					this.usedSetLayouts.add(setLayout);
 				}
 			}
@@ -59,14 +60,16 @@ public class VulkanPipelineLayout extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyPipelineLayout(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated) {
-			this.device.removeInvalidate(this);
-			for (var setLayout : this.usedSetLayouts)
-				setLayout.removeInvalidate(this);
-		}
+		for (var setLayout : this.usedSetLayouts)
+			setLayout.removeChild(this);
 		this.usedSetLayouts.clear();
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public static class PushConstantRange {

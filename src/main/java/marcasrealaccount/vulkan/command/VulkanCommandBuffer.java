@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.command;
+package marcasrealaccount.vulkan.command;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK12;
@@ -9,26 +9,26 @@ import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 import org.lwjgl.vulkan.VkViewport;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
-import marcasrealaccount.vulkan.instance.image.VulkanFramebuffer;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanPipeline;
-import marcasrealaccount.vulkan.instance.pipeline.VulkanRenderPass;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.image.VulkanFramebuffer;
+import marcasrealaccount.vulkan.pipeline.VulkanPipeline;
+import marcasrealaccount.vulkan.pipeline.VulkanRenderPass;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
 import marcasrealaccount.vulkan.util.VulkanScissor;
 import marcasrealaccount.vulkan.util.VulkanViewport;
 
 public class VulkanCommandBuffer extends VulkanHandle<VkCommandBuffer> {
-	public final VulkanDevice device;
 	public final VulkanCommandPool commandPool;
 
 	public final int level;
 
-	public VulkanCommandBuffer(VulkanDevice device, VulkanCommandPool commandPool, VkCommandBuffer handle, int level) {
-		super(null, handle);
-		this.device = device;
+	public VulkanCommandBuffer(VulkanCommandPool commandPool, VkCommandBuffer handle, int level) {
+		super(null, false);
+		this.handle = handle;
 		this.commandPool = commandPool;
 		this.level = level;
+
+		this.commandPool.addChild(this);
 	}
 
 	@Override
@@ -36,7 +36,12 @@ public class VulkanCommandBuffer extends VulkanHandle<VkCommandBuffer> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.commandPool.removeChild(this);
 	}
 
 	public boolean begin() {

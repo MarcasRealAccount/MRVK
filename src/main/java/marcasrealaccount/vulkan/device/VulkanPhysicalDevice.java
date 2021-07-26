@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance;
+package marcasrealaccount.vulkan.device;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,32 +10,90 @@ import org.lwjgl.vulkan.VkExtensionProperties;
 import org.lwjgl.vulkan.VkLayerProperties;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 
-import marcasrealaccount.vulkan.util.IVulkanPhysicalDeviceScorer;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.instance.VulkanInstance;
+import marcasrealaccount.vulkan.surface.VulkanSurface;
 import marcasrealaccount.vulkan.util.VulkanExtension;
 import marcasrealaccount.vulkan.util.VulkanLayer;
 import marcasrealaccount.vulkan.util.VulkanQueueFamilyIndices;
 import marcasrealaccount.vulkan.util.VulkanSwapchainSupportDetails;
 
-public class VulkanPhysicalDevice {
+public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 	public final VulkanInstance instance;
 	public final VulkanSurface surface;
-	public final VulkanQueueFamilyIndices indices;
-	public final VulkanSwapchainSupportDetails swapchainSupportDetails;
-	private VkPhysicalDevice handle;
+
+	public IVulkanPhysicalDeviceScorer scorer = null;
+
+	private VulkanQueueFamilyIndices indices = null;
+	private VulkanSwapchainSupportDetails swapchainSupportDetails = null;
 
 	private ArrayList<VulkanExtension> availableExtensions;
 	private ArrayList<VulkanLayer> availableLayers;
 
-	public VulkanPhysicalDevice(VulkanInstance instance, VulkanSurface surface, VkPhysicalDevice handle) {
+	public VulkanPhysicalDevice(VulkanInstance instance, VulkanSurface surface) {
+		super(null, false);
 		this.instance = instance;
 		this.surface = surface;
-		this.handle = handle;
-		this.indices = VulkanQueueFamilyIndices.getIndices(this.handle, this.surface);
-		this.swapchainSupportDetails = VulkanSwapchainSupportDetails.getSupport(this.handle, this.surface);
+
+		this.instance.addChild(this);
+		this.surface.addChild(this);
 	}
 
-	public VkPhysicalDevice getHandle() {
-		return this.handle;
+	@Override
+	protected void createAbstract() {
+		update();
+	}
+
+	@Override
+	protected void destroyAbstract() {
+		this.indices = null;
+		this.swapchainSupportDetails = null;
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.instance.removeChild(this);
+		this.surface.removeChild(this);
+	}
+
+	public void update() {
+		try (var stack = MemoryStack.stackPush()) {
+			var deviceCount = stack.mallocInt(1);
+			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, null);
+			if (deviceCount.get(0) == 0)
+				return;
+
+			var pDevices = MemoryUtil.memAllocPointer(deviceCount.get(0));
+			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, pDevices);
+
+			VkPhysicalDevice bestPhysicalDevice = null;
+			long bestScore = -1;
+
+			for (int i = 0; i < pDevices.capacity(); ++i) {
+				var physicalDevice = new VkPhysicalDevice(pDevices.get(i), instance.getHandle());
+				long score = scorer.score(physicalDevice);
+				if (score > bestScore) {
+					bestScore = score;
+					bestPhysicalDevice = physicalDevice;
+				}
+			}
+
+			MemoryUtil.memFree(pDevices);
+
+			this.handle = bestPhysicalDevice;
+			if (this.handle != null) {
+				this.indices = VulkanQueueFamilyIndices.getIndices(bestPhysicalDevice, surface);
+				this.swapchainSupportDetails = VulkanSwapchainSupportDetails.getSupport(bestPhysicalDevice, surface);
+			}
+		}
+	}
+
+	public VulkanQueueFamilyIndices getIndices() {
+		return this.indices;
+	}
+
+	public VulkanSwapchainSupportDetails getSwapchainSupportDetails() {
+		return this.swapchainSupportDetails;
 	}
 
 	public boolean hasExtension(String name, int minVersion) {
@@ -110,45 +168,6 @@ public class VulkanPhysicalDevice {
 				this.availableLayers.add(new VulkanLayer(layer.layerNameString(), layer.specVersion()));
 
 			layers.free();
-		}
-	}
-
-	public void addInvalidate(VulkanHandle<?> invalidate) {
-		this.instance.addInvalidate(invalidate);
-	}
-
-	public void removeInvalidate(VulkanHandle<?> invalidate) {
-		this.instance.removeInvalidate(invalidate);
-	}
-
-	public static VulkanPhysicalDevice pickBestPhysicalDevice(VulkanInstance instance, VulkanSurface surface,
-			IVulkanPhysicalDeviceScorer scorer) {
-		try (var stack = MemoryStack.stackPush()) {
-			var deviceCount = stack.mallocInt(1);
-			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, null);
-			if (deviceCount.get(0) == 0)
-				return null;
-
-			var pDevices = MemoryUtil.memAllocPointer(deviceCount.get(0));
-			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, pDevices);
-
-			VulkanPhysicalDevice bestPhysicalDevice = null;
-
-			long bestScore = -1;
-
-			for (int i = 0; i < pDevices.capacity(); ++i) {
-				var physicalDevice = new VulkanPhysicalDevice(instance, surface,
-						new VkPhysicalDevice(pDevices.get(i), instance.getHandle()));
-				long score = scorer.score(physicalDevice);
-				if (score > bestScore) {
-					bestScore = score;
-					bestPhysicalDevice = physicalDevice;
-				}
-			}
-
-			MemoryUtil.memFree(pDevices);
-
-			return bestPhysicalDevice;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance;
+package marcasrealaccount.vulkan.device;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.KHRSwapchain;
@@ -7,9 +7,11 @@ import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
-import marcasrealaccount.vulkan.instance.command.VulkanCommandBuffer;
-import marcasrealaccount.vulkan.instance.synchronize.VulkanFence;
-import marcasrealaccount.vulkan.instance.synchronize.VulkanSemaphore;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.command.VulkanCommandBuffer;
+import marcasrealaccount.vulkan.surface.VulkanSwapchain;
+import marcasrealaccount.vulkan.sync.VulkanFence;
+import marcasrealaccount.vulkan.sync.VulkanSemaphore;
 
 public class VulkanQueue extends VulkanHandle<VkQueue> {
 	public final VulkanDevice device;
@@ -20,6 +22,8 @@ public class VulkanQueue extends VulkanHandle<VkQueue> {
 	public VulkanQueue(VulkanDevice device) {
 		super(null);
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -27,17 +31,18 @@ public class VulkanQueue extends VulkanHandle<VkQueue> {
 		try (var stack = MemoryStack.stackPush()) {
 			var pQueue = stack.mallocPointer(1);
 			VK12.vkGetDeviceQueue(this.device.getHandle(), this.queueFamilyIndex, this.queueIndex, pQueue);
-			if (pQueue.get(0) != 0) {
+			if (pQueue.get(0) != 0)
 				this.handle = new VkQueue(pQueue.get(0), this.device.getHandle());
-				this.device.addInvalidate(this);
-			}
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
-		if (!wasInvalidated)
-			this.device.removeInvalidate(this);
+	protected void destroyAbstract() {
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public void waitIdle() {
@@ -70,7 +75,7 @@ public class VulkanQueue extends VulkanHandle<VkQueue> {
 		}
 	}
 
-	public boolean present(VulkanSwapchain[] swapchains, int[] imageIndices, VulkanSemaphore[] waitSemaphores) {
+	public int[] present(VulkanSwapchain[] swapchains, int[] imageIndices, VulkanSemaphore[] waitSemaphores) {
 		try (var stack = MemoryStack.stackPush()) {
 			var presentInfo = VkPresentInfoKHR.mallocStack(stack);
 			var pSwapchains = stack.mallocLong(swapchains.length);
@@ -88,12 +93,11 @@ public class VulkanQueue extends VulkanHandle<VkQueue> {
 			presentInfo.set(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, 0, pWaitSemaphores, pSwapchains.capacity(),
 					pSwapchains, pImageIndices, pResults);
 
-			KHRSwapchain.vkQueuePresentKHR(this.device.getPresentQueue().getHandle(), presentInfo);
+			KHRSwapchain.vkQueuePresentKHR(this.handle, presentInfo);
 
-			for (int i = 0; i < swapchains.length; ++i)
-				if (pResults.get(i) != VK12.VK_SUCCESS)
-					return false;
-			return true;
+			int[] results = new int[swapchains.length];
+			pResults.get(0, results);
+			return results;
 		}
 	}
 }

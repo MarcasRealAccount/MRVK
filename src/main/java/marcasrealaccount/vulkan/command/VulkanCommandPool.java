@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.command;
+package marcasrealaccount.vulkan.command;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,8 +9,8 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
 import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 
 public class VulkanCommandPool extends VulkanHandle<Long> {
 	public final VulkanDevice device;
@@ -22,6 +22,8 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 	public VulkanCommandPool(VulkanDevice device) {
 		super(0L);
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -32,18 +34,23 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, 0, 0, this.queueFamilyIndex);
 
-			if (VK12.vkCreateCommandPool(this.device.getHandle(), createInfo, null, pCommandPool) == VK12.VK_SUCCESS) {
+			if (VK12.vkCreateCommandPool(this.device.getHandle(), createInfo, null, pCommandPool) == VK12.VK_SUCCESS)
 				this.handle = pCommandPool.get(0);
-				this.device.addInvalidate(this);
-			}
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyCommandPool(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated)
-			this.device.removeInvalidate(this);
+		for (var commandBuffers : this.commandBufferLevels.values())
+			for (var commandBuffer : commandBuffers)
+				commandBuffer.remove();
+		this.commandBufferLevels.clear();
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public void reset() {
@@ -68,7 +75,7 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 				}
 
 				for (int i = 0; i < count; ++i) {
-					var buffer = new VulkanCommandBuffer(this.device, this,
+					var buffer = new VulkanCommandBuffer(this,
 							new VkCommandBuffer(pCommandBuffers.get(i), this.device.getHandle()), level);
 					commandBuffers.add(buffer);
 					buffers.add(buffer);

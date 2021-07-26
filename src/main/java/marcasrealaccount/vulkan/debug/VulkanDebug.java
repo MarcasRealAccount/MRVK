@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.debug;
+package marcasrealaccount.vulkan.debug;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.EXTDebugUtils;
@@ -7,7 +7,7 @@ import org.lwjgl.vulkan.VkDebugUtilsMessengerCallbackDataEXT;
 import org.lwjgl.vulkan.VkDebugUtilsMessengerCreateInfoEXT;
 
 import marcasrealaccount.vulkan.Reference;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
 import marcasrealaccount.vulkan.instance.VulkanInstance;
 
 public class VulkanDebug extends VulkanHandle<Long> {
@@ -18,6 +18,8 @@ public class VulkanDebug extends VulkanHandle<Long> {
 	public VulkanDebug(VulkanInstance instance) {
 		super(0L);
 		this.instance = instance;
+
+		this.instance.addChild(this);
 	}
 
 	@Override
@@ -29,22 +31,19 @@ public class VulkanDebug extends VulkanHandle<Long> {
 			populateCreateInfo(createInfo);
 
 			if (EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(this.instance.getHandle(), createInfo, null,
-					pDebugMessenger) == VK12.VK_SUCCESS) {
+					pDebugMessenger) == VK12.VK_SUCCESS)
 				this.handle = pDebugMessenger.get(0);
-				this.instance.addInvalidate(this);
-			}
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT(this.instance.getHandle(), this.handle, null);
-		if (!wasInvalidated)
-			this.instance.removeInvalidate(this);
 	}
 
-	public VulkanInstance getInstance() {
-		return this.instance;
+	@Override
+	protected void removeAbstract() {
+		this.instance.removeChild(this);
 	}
 
 	public static void disable() {

@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.pipeline;
+package marcasrealaccount.vulkan.shader;
 
 import java.nio.IntBuffer;
 import java.util.ArrayList;
@@ -25,8 +25,10 @@ import org.lwjgl.vulkan.VkVertexInputAttributeDescription;
 import org.lwjgl.vulkan.VkVertexInputBindingDescription;
 import org.lwjgl.vulkan.VkViewport;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.shader.VulkanShaderModule;
+import marcasrealaccount.vulkan.device.VulkanDevice;
+import marcasrealaccount.vulkan.pipeline.VulkanPipeline;
+import marcasrealaccount.vulkan.pipeline.VulkanPipelineLayout;
+import marcasrealaccount.vulkan.pipeline.VulkanRenderPass;
 
 public class VulkanGraphicsPipeline extends VulkanPipeline {
 	public final VulkanDevice device;
@@ -51,6 +53,10 @@ public class VulkanGraphicsPipeline extends VulkanPipeline {
 		this.device = device;
 		this.pipelineLayout = pipelineLayout;
 		this.renderPass = renderPass;
+
+		this.device.addChild(this);
+		this.pipelineLayout.addChild(this);
+		this.renderPass.addChild(this);
 	}
 
 	@Override
@@ -194,12 +200,8 @@ public class VulkanGraphicsPipeline extends VulkanPipeline {
 					this.renderPass.getHandle(), subpass, 0, 0);
 
 			if (VK12.vkCreateGraphicsPipelines(this.device.getHandle(), 0, createInfos, null,
-					pGraphicsPipelines) == VK12.VK_SUCCESS) {
+					pGraphicsPipelines) == VK12.VK_SUCCESS)
 				this.handle = pGraphicsPipelines.get(0);
-				this.device.addInvalidate(this);
-				this.pipelineLayout.addInvalidate(this);
-				this.renderPass.addInvalidate(this);
-			}
 
 			pVertexBindings.free();
 			pVertexAttributes.free();
@@ -212,13 +214,15 @@ public class VulkanGraphicsPipeline extends VulkanPipeline {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyPipeline(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated) {
-			this.device.removeInvalidate(this);
-			this.pipelineLayout.removeInvalidate(this);
-			this.renderPass.removeInvalidate(this);
-		}
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
+		this.pipelineLayout.removeChild(this);
+		this.renderPass.removeChild(this);
 	}
 
 	@Override

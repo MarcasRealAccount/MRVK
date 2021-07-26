@@ -11,7 +11,7 @@ import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
 
-import marcasrealaccount.vulkan.instance.VulkanSurface;
+import marcasrealaccount.vulkan.surface.VulkanSurface;
 import net.minecraft.client.util.Window;
 
 public class VulkanSwapchainSupportDetails {

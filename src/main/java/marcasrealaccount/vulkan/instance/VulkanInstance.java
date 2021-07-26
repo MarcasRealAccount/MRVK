@@ -14,7 +14,8 @@ import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkLayerProperties;
 
 import marcasrealaccount.vulkan.Reference;
-import marcasrealaccount.vulkan.instance.debug.VulkanDebug;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.debug.VulkanDebug;
 import marcasrealaccount.vulkan.util.VulkanExtension;
 import marcasrealaccount.vulkan.util.VulkanLayer;
 import net.minecraft.MinecraftVersion;
@@ -95,8 +96,12 @@ public class VulkanInstance extends VulkanHandle<VkInstance> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyInstance(this.handle, null);
+	}
+
+	@Override
+	protected void removeAbstract() {
 	}
 
 	public List<VulkanExtension> getExtensions() {

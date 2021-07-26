@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.image;
+package marcasrealaccount.vulkan.image;
 
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -6,8 +6,8 @@ import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkExtent3D;
 import org.lwjgl.vulkan.VkImageCreateInfo;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 import marcasrealaccount.vulkan.util.VulkanExtent3D;
 
 public class VulkanImage extends VulkanHandle<Long> {
@@ -31,8 +31,11 @@ public class VulkanImage extends VulkanHandle<Long> {
 	}
 
 	public VulkanImage(VulkanDevice device, long handle) {
-		super(0L, handle);
+		super(0L, false);
+		this.handle = handle;
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -51,20 +54,21 @@ public class VulkanImage extends VulkanHandle<Long> {
 					pExtent, this.mipLevels, this.arrayLayers, this.samples, this.tiling.getValue(), this.usage,
 					this.sharingMode, pQueueFamilyIndices, this.initialLayout);
 
-			if (VK12.vkCreateImage(this.device.getHandle(), createInfo, null, pImage) == VK12.VK_SUCCESS) {
+			if (VK12.vkCreateImage(this.device.getHandle(), createInfo, null, pImage) == VK12.VK_SUCCESS)
 				this.handle = pImage.get(0);
-				this.device.addInvalidate(this);
-			}
 
 			MemoryUtil.memFree(pQueueFamilyIndices);
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyImage(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated)
-			this.device.removeInvalidate(this);
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public enum EImageType {

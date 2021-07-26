@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance.pipeline;
+package marcasrealaccount.vulkan.pipeline;
 
 import java.util.ArrayList;
 
@@ -7,8 +7,8 @@ import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkDescriptorSetLayoutBinding;
 import org.lwjgl.vulkan.VkDescriptorSetLayoutCreateInfo;
 
-import marcasrealaccount.vulkan.instance.VulkanDevice;
-import marcasrealaccount.vulkan.instance.VulkanHandle;
+import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.VulkanDevice;
 
 public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 	public final VulkanDevice device;
@@ -18,6 +18,8 @@ public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 	public VulkanDescriptorSetLayout(VulkanDevice device) {
 		super(0L);
 		this.device = device;
+
+		this.device.addChild(this);
 	}
 
 	@Override
@@ -37,20 +39,21 @@ public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, pBindings);
 
 			if (VK12.vkCreateDescriptorSetLayout(this.device.getHandle(), createInfo, null,
-					pSetLayout) == VK12.VK_SUCCESS) {
+					pSetLayout) == VK12.VK_SUCCESS)
 				this.handle = pSetLayout.get(0);
-				this.device.addInvalidate(this);
-			}
 
 			pBindings.free();
 		}
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyDescriptorSetLayout(this.device.getHandle(), this.handle, null);
-		if (!wasInvalidated)
-			this.device.removeInvalidate(this);
+	}
+
+	@Override
+	protected void removeAbstract() {
+		this.device.removeChild(this);
 	}
 
 	public static class Binding {

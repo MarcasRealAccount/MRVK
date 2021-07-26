@@ -8,7 +8,7 @@ import org.lwjgl.vulkan.VK12;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueueFamilyProperties;
 
-import marcasrealaccount.vulkan.instance.VulkanSurface;
+import marcasrealaccount.vulkan.surface.VulkanSurface;
 
 public class VulkanQueueFamilyIndices {
 	public Optional<Integer> graphicsFamily;

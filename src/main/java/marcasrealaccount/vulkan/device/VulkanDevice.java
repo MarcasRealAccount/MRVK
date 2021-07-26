@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.instance;
+package marcasrealaccount.vulkan.device;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
 
+import marcasrealaccount.vulkan.VulkanHandle;
 import marcasrealaccount.vulkan.util.VulkanExtension;
 import marcasrealaccount.vulkan.util.VulkanLayer;
 
@@ -21,12 +22,11 @@ public class VulkanDevice extends VulkanHandle<VkDevice> {
 	private final ArrayList<VulkanExtension> extensions = new ArrayList<>();
 	private final ArrayList<VulkanLayer> layers = new ArrayList<>();
 
-	private VulkanQueue graphicsQueue = null;
-	private VulkanQueue presentQueue = null;
-
 	public VulkanDevice(VulkanPhysicalDevice physicalDevice) {
 		super(null);
 		this.physicalDevice = physicalDevice;
+
+		this.physicalDevice.addChild(this);
 	}
 
 	@Override
@@ -36,7 +36,7 @@ public class VulkanDevice extends VulkanHandle<VkDevice> {
 		if (!physicalDevice.validateLayer(layers))
 			throw new RuntimeException("One or more device layers are invalid");
 
-		var indices = physicalDevice.indices;
+		var indices = physicalDevice.getIndices();
 		HashSet<Integer> uniqueQueueFamilies = new HashSet<Integer>();
 		uniqueQueueFamilies.add(indices.graphicsFamily.get());
 		uniqueQueueFamilies.add(indices.presentFamily.get());
@@ -66,20 +66,10 @@ public class VulkanDevice extends VulkanHandle<VkDevice> {
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 0, 0, queueCreateInfos, pLayerNames,
 					pExtensionNames, deviceFeatures);
 
-			if (VK12.vkCreateDevice(this.physicalDevice.getHandle(), createInfo, null, pDevice) == VK12.VK_SUCCESS) {
+			if (VK12.vkCreateDevice(this.physicalDevice.getHandle(), createInfo, null, pDevice) == VK12.VK_SUCCESS)
 				this.handle = new VkDevice(pDevice.get(0), this.physicalDevice.getHandle(), createInfo);
-				this.physicalDevice.addInvalidate(this);
-
-				this.graphicsQueue = new VulkanQueue(this);
-				this.graphicsQueue.queueFamilyIndex = indices.graphicsFamily.get();
-				this.graphicsQueue.create();
-
-				this.presentQueue = new VulkanQueue(this);
-				this.presentQueue.queueFamilyIndex = indices.presentFamily.get();
-				this.presentQueue.create();
-			} else {
+			else
 				this.handle = null;
-			}
 
 			for (i = 0; i < pExtensionNames.capacity(); ++i)
 				MemoryUtil.memFree(pExtensionNames.getByteBuffer(i, 1));
@@ -91,20 +81,13 @@ public class VulkanDevice extends VulkanHandle<VkDevice> {
 	}
 
 	@Override
-	protected void closeAbstract(boolean recreate, boolean wasInvalidated) {
+	protected void destroyAbstract() {
 		VK12.vkDestroyDevice(this.handle, null);
-		if (!wasInvalidated)
-			this.physicalDevice.removeInvalidate(this);
-		this.graphicsQueue = null;
-		this.presentQueue = null;
 	}
 
-	public VulkanQueue getGraphicsQueue() {
-		return this.graphicsQueue;
-	}
-
-	public VulkanQueue getPresentQueue() {
-		return this.presentQueue;
+	@Override
+	protected void removeAbstract() {
+		this.physicalDevice.removeChild(this);
 	}
 
 	public void forceUseExtension(String name, int minVersion) {
