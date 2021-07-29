@@ -20,12 +20,16 @@ import com.google.common.collect.Lists;
 import marcasrealaccount.vulkan.command.VulkanCommandBuffer;
 import marcasrealaccount.vulkan.command.VulkanCommandPool;
 import marcasrealaccount.vulkan.command.util.VulkanBufferCopy;
+import marcasrealaccount.vulkan.command.util.VulkanBufferImageCopy;
+import marcasrealaccount.vulkan.command.util.VulkanImageMemoryBarrier;
 import marcasrealaccount.vulkan.debug.VulkanDebug;
 import marcasrealaccount.vulkan.device.VulkanDevice;
 import marcasrealaccount.vulkan.device.VulkanPhysicalDevice;
 import marcasrealaccount.vulkan.device.VulkanQueue;
 import marcasrealaccount.vulkan.image.VulkanFramebuffer;
+import marcasrealaccount.vulkan.image.VulkanImage;
 import marcasrealaccount.vulkan.image.VulkanImageView;
+import marcasrealaccount.vulkan.image.VulkanSampler;
 import marcasrealaccount.vulkan.instance.VulkanInstance;
 import marcasrealaccount.vulkan.memory.VulkanBuffer;
 import marcasrealaccount.vulkan.memory.VulkanMemoryAllocator;
@@ -44,6 +48,9 @@ import marcasrealaccount.vulkan.sync.VulkanFence;
 import marcasrealaccount.vulkan.sync.VulkanSemaphore;
 import marcasrealaccount.vulkan.util.VulkanClearColorFloat;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
+import marcasrealaccount.vulkan.util.VulkanImageSubresourceLayers;
+import marcasrealaccount.vulkan.util.VulkanImageSubresourceRange;
+import marcasrealaccount.vulkan.util.VulkanOffset3D;
 import marcasrealaccount.vulkan.util.VulkanScissor;
 import marcasrealaccount.vulkan.util.VulkanSurfaceFormat;
 import marcasrealaccount.vulkan.util.VulkanViewport;
@@ -52,6 +59,7 @@ import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Quaternion;
 import net.minecraft.util.math.Vec3f;
 
+// TODO: Fix "vkCreateSwapchainKHR: internal drawable creation failed" message from the Vulkan Validation layers when resizing window
 public class Vulkan {
 	public static final Vulkan INSTANCE             = new Vulkan();
 	private static final int   MAX_FRAMES_IN_FLIGHT = 2;
@@ -69,7 +77,7 @@ public class Vulkan {
 	private VulkanSurfaceFormat format = null;
 
 	private boolean                            recreateSwapchain = false;
-	private VulkanSwapchain                    swapchain         = new VulkanSwapchain(this.device);
+	private VulkanSwapchain                    swapchain         = new VulkanSwapchain(this.memoryAllocator);
 	private VulkanRenderPass                   renderPass        = new VulkanRenderPass(this.device);
 	private final ArrayList<VulkanImageView>   imageViews        = new ArrayList<>();
 	private final ArrayList<VulkanFramebuffer> framebuffers      = new ArrayList<>();
@@ -319,32 +327,34 @@ public class Vulkan {
 		var vertexShader = """
 				#version 450
 
-				layout(location = 0) in vec2 inPosition;
-				layout(location = 1) in vec3 inColor;
+				layout(location = 0) in vec4 inPosition;
+				layout(location = 1) in vec2 inUV;
 
-				layout(location = 0) out vec3 fragColor;
+				layout(location = 0) out vec2 outUV;
 
-				layout(binding = 0) uniform UniformBufferObject {
+				layout(set = 0, binding = 0) uniform UniformBufferObject {
 					mat4 model;
 					mat4 view;
 					mat4 proj;
 				} ubo;
 
 				void main() {
-				    gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 0.0, 1.0);
-				    fragColor = inColor;
+				    gl_Position = ubo.proj * ubo.view * ubo.model * inPosition;
+				    outUV = inUV;
 				}
 								""";
 
 		var fragmentShader = """
 				#version 450
 
-				layout(location = 0) in vec3 fragColor;
+				layout(location = 0) in vec2 inUV;
 
 				layout(location = 0) out vec4 outColor;
 
+				layout(set = 0, binding = 1) uniform sampler2D textureSampler;
+
 				void main() {
-				    outColor = vec4(fragColor, 1.0);
+				    outColor = texture(textureSampler, inUV);
 				}
 								""";
 
@@ -394,15 +404,17 @@ public class Vulkan {
 
 		descriptorSetLayout.bindings
 				.add(new VulkanDescriptorSetLayout.Binding(0, VK12.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK12.VK_SHADER_STAGE_VERTEX_BIT));
+		descriptorSetLayout.bindings
+				.add(new VulkanDescriptorSetLayout.Binding(1, VK12.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK12.VK_SHADER_STAGE_FRAGMENT_BIT));
 
 		graphicsPipelineLayout.setLayouts.add(descriptorSetLayout);
 
 		graphicsPipeline.vertexInputState.vertexBindings
-				.add(new VulkanGraphicsPipeline.VertexInputState.VertexBinding(0, 20, VK12.VK_VERTEX_INPUT_RATE_VERTEX));
+				.add(new VulkanGraphicsPipeline.VertexInputState.VertexBinding(0, 24, VK12.VK_VERTEX_INPUT_RATE_VERTEX));
 		graphicsPipeline.vertexInputState.vertexAttributes
-				.add(new VulkanGraphicsPipeline.VertexInputState.VertexAttribute(0, 0, VK12.VK_FORMAT_R32G32_SFLOAT, 0));
+				.add(new VulkanGraphicsPipeline.VertexInputState.VertexAttribute(0, 0, VK12.VK_FORMAT_R32G32B32A32_SFLOAT, 0));
 		graphicsPipeline.vertexInputState.vertexAttributes
-				.add(new VulkanGraphicsPipeline.VertexInputState.VertexAttribute(1, 0, VK12.VK_FORMAT_R32G32B32_SFLOAT, 8));
+				.add(new VulkanGraphicsPipeline.VertexInputState.VertexAttribute(1, 0, VK12.VK_FORMAT_R32G32_SFLOAT, 16));
 
 		graphicsPipeline.shaderStages.add(new VulkanGraphicsPipeline.VulkanShaderStage(EShaderStage.VERTEX, vertexShaderModule, "main"));
 		graphicsPipeline.shaderStages.add(new VulkanGraphicsPipeline.VulkanShaderStage(EShaderStage.FRAGMENT, fragmentShaderModule, "main"));
@@ -414,38 +426,81 @@ public class Vulkan {
 
 		descriptorPool.maxSets = Vulkan.MAX_FRAMES_IN_FLIGHT;
 		descriptorPool.poolSizes.add(new PoolSize(VK12.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, Vulkan.MAX_FRAMES_IN_FLIGHT));
+		descriptorPool.poolSizes.add(new PoolSize(VK12.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Vulkan.MAX_FRAMES_IN_FLIGHT));
 
 		if (!descriptorSetLayout.create()) throw new RuntimeException("Failed to create Vulkan DescriptorSetLayout");
 		if (!graphicsPipelineLayout.create()) throw new RuntimeException("Failed to create Vulkan PipelineLayout");
 		if (!graphicsPipeline.create()) throw new RuntimeException("Failed to create Vulkan GraphicsPipeline");
 		if (!descriptorPool.create()) throw new RuntimeException("Failed to create Vulkan DescriptorPool");
 
-		var buffer = new VulkanBuffer(this.memoryAllocator);
-		buffer.size  = 104;
-		buffer.usage = VK12.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK12.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK12.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		if (!buffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
+		var meshBuffer = new VulkanBuffer(this.memoryAllocator);
+		meshBuffer.size   = 120;
+		meshBuffer.usage |= VK12.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK12.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		if (!meshBuffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
+
+		var textureImage = new VulkanImage(this.memoryAllocator);
+		textureImage.extent.width   = 2;
+		textureImage.extent.height  = 2;
+		textureImage.usage         |= VK12.VK_IMAGE_USAGE_SAMPLED_BIT;
+		if (!textureImage.create()) throw new RuntimeException("Failed to create Vulkan Image");
+
+		var textureImageView = new VulkanImageView(this.device, textureImage);
+		if (!textureImageView.create()) throw new RuntimeException("Failed to create Vulkan ImageView");
+
+		var textureImageSampler = new VulkanSampler(this.device);
+		if (!textureImageSampler.create()) throw new RuntimeException("Failed to create Vulkan Sampler");
 
 		{
 			var stagingBuffer = new VulkanBuffer(this.memoryAllocator);
-			stagingBuffer.size        = buffer.size;
+			stagingBuffer.size        = meshBuffer.size + (2 * 2 * 4);
 			stagingBuffer.usage       = VK12.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			stagingBuffer.memoryUsage = Vma.VMA_MEMORY_USAGE_CPU_ONLY;
 			if (!stagingBuffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
 
 			var mappedMemory = stagingBuffer.mapMemory();
 
-			float[] vertices = new float[] { 0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, -0.5f, 0.5f,
-					1.0f, 0.0f, 0.0f };
+			float[] vertices = new float[] { 0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, -0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
+					1.0f, -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f };
 			int[]   indices  = new int[] { 0, 1, 2, 2, 3, 0 };
+			byte[]  pixels   = new byte[] { -1, 0, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, 0, 0, -1 };
 			mappedMemory.asFloatBuffer().put(0, vertices);
-			mappedMemory.asIntBuffer().put(20, indices);
+			mappedMemory.asIntBuffer().put(24, indices);
+			mappedMemory.put((int) Math.min(meshBuffer.size, Integer.MAX_VALUE), pixels);
 
 			stagingBuffer.unmapMemory();
 
 			var currentCommandPool   = getCommandPool(this.currentFrame);
 			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
 			if (currentCommandBuffer.begin()) {
-				currentCommandBuffer.cmdCopyBuffer(stagingBuffer, buffer, new VulkanBufferCopy[] { new VulkanBufferCopy(0, 0, buffer.size) });
+				currentCommandBuffer.cmdCopyBuffer(stagingBuffer, meshBuffer, new VulkanBufferCopy[] { new VulkanBufferCopy(0, 0, meshBuffer.size) });
+
+				int srcStageMask  = VK12.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+				int dstStageMask  = VK12.VK_PIPELINE_STAGE_TRANSFER_BIT;
+				int srcAccessMask = 0;
+				int dstAccessMask = VK12.VK_ACCESS_TRANSFER_WRITE_BIT;
+
+				currentCommandBuffer.cmdPipelineBarrier(srcStageMask, dstStageMask, 0, null, null,
+						new VulkanImageMemoryBarrier[] { new VulkanImageMemoryBarrier(srcAccessMask, dstAccessMask, VK12.VK_QUEUE_FAMILY_IGNORED,
+								VK12.VK_QUEUE_FAMILY_IGNORED, VK12.VK_IMAGE_LAYOUT_UNDEFINED, VK12.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, textureImage,
+								new VulkanImageSubresourceRange(VK12.VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)) });
+
+				currentCommandBuffer.cmdCopyBufferToIamge(stagingBuffer, textureImage, VK12.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						new VulkanBufferImageCopy[] { new VulkanBufferImageCopy(meshBuffer.size, 0, 0,
+								new VulkanImageSubresourceLayers(VK12.VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1), new VulkanOffset3D(0, 0, 0),
+								textureImage.extent) });
+
+				srcStageMask  = VK12.VK_PIPELINE_STAGE_TRANSFER_BIT;
+				dstStageMask  = VK12.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+				srcAccessMask = VK12.VK_ACCESS_TRANSFER_WRITE_BIT;
+				dstAccessMask = VK12.VK_ACCESS_SHADER_READ_BIT;
+
+				currentCommandBuffer
+						.cmdPipelineBarrier(srcStageMask, dstStageMask, 0, null, null,
+								new VulkanImageMemoryBarrier[] { new VulkanImageMemoryBarrier(srcAccessMask, dstAccessMask,
+										VK12.VK_QUEUE_FAMILY_IGNORED, VK12.VK_QUEUE_FAMILY_IGNORED, VK12.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+										VK12.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, textureImage,
+										new VulkanImageSubresourceRange(VK12.VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1)) });
+
 				currentCommandBuffer.end();
 
 				this.graphicsQueue.submitCommandBuffers(new VulkanCommandBuffer[] { currentCommandBuffer }, null, null, null, null);
@@ -456,20 +511,24 @@ public class Vulkan {
 		}
 
 		var uniformBuffer = new VulkanBuffer(this.memoryAllocator);
-		uniformBuffer.size        = 192 * Vulkan.MAX_FRAMES_IN_FLIGHT;
-		uniformBuffer.usage       = VK12.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK12.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		uniformBuffer.memoryUsage = Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
+		uniformBuffer.size         = 192 * Vulkan.MAX_FRAMES_IN_FLIGHT;
+		uniformBuffer.usage       |= VK12.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		uniformBuffer.memoryUsage  = Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
 		if (!uniformBuffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
 
 		var descriptorSetLayouts = new VulkanDescriptorSetLayout[Vulkan.MAX_FRAMES_IN_FLIGHT];
 		for (int i = 0; i < Vulkan.MAX_FRAMES_IN_FLIGHT; ++i) descriptorSetLayouts[i] = descriptorSetLayout;
 		var descriptorSets = descriptorPool.allocateSets(descriptorSetLayouts);
 
-		var writeDescriptorSets = new VulkanDescriptorSet.WriteDescriptorSet[Vulkan.MAX_FRAMES_IN_FLIGHT];
-		for (int i = 0; i < Vulkan.MAX_FRAMES_IN_FLIGHT; ++i) {
+		var writeDescriptorSets = new VulkanDescriptorSet.WriteDescriptorSet[Vulkan.MAX_FRAMES_IN_FLIGHT * 2];
+		for (int i = 0; i < Vulkan.MAX_FRAMES_IN_FLIGHT; ++i)
 			writeDescriptorSets[i] = new VulkanDescriptorSet.WriteDescriptorSet(descriptorSets.get(i), 0, 0, VK12.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 					1, null, new VulkanDescriptorSet.WriteDescriptorSet.BufferInfo(uniformBuffer, 192 * i, 192), null);
-		}
+		for (int i = Vulkan.MAX_FRAMES_IN_FLIGHT; i < Vulkan.MAX_FRAMES_IN_FLIGHT * 2; ++i)
+			writeDescriptorSets[i] = new VulkanDescriptorSet.WriteDescriptorSet(descriptorSets.get(i - Vulkan.MAX_FRAMES_IN_FLIGHT), 1, 0,
+					VK12.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, new VulkanDescriptorSet.WriteDescriptorSet.ImageInfo(textureImageSampler,
+							textureImageView, VK12.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
+					null, null);
 
 		VulkanDescriptorSet.updateDescriptorSets(this.device, writeDescriptorSets, null);
 
@@ -512,8 +571,8 @@ public class Vulkan {
 				currentCommandBuffer.cmdSetScissors(0, new VulkanScissor[] { new VulkanScissor(0, 0, this.swapchain.width, this.swapchain.height) });
 				currentCommandBuffer.cmdSetLineWidth(1.0f);
 				currentCommandBuffer.cmdBindPipeline(graphicsPipeline);
-				currentCommandBuffer.cmdBindVertexBuffers(0, new VulkanBuffer[] { buffer }, new long[] { 0 });
-				currentCommandBuffer.cmdBindIndexBuffer(buffer, 80, VK12.VK_INDEX_TYPE_UINT32);
+				currentCommandBuffer.cmdBindVertexBuffers(0, new VulkanBuffer[] { meshBuffer }, new long[] { 0 });
+				currentCommandBuffer.cmdBindIndexBuffer(meshBuffer, 96, VK12.VK_INDEX_TYPE_UINT32);
 				currentCommandBuffer.cmdBindDescriptorSets(VK12.VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0,
 						new VulkanDescriptorSet[] { descriptorSets.get(this.currentFrame) }, null);
 				currentCommandBuffer.cmdDrawIndexed(6, 1, 0, 0, 0);

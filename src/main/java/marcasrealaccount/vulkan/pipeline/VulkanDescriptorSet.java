@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import marcasrealaccount.vulkan.VulkanHandle;
 import marcasrealaccount.vulkan.device.VulkanDevice;
 import marcasrealaccount.vulkan.image.VulkanImageView;
+import marcasrealaccount.vulkan.image.VulkanSampler;
 import marcasrealaccount.vulkan.memory.VulkanBuffer;
 
 public class VulkanDescriptorSet extends VulkanHandle<Long> {
@@ -112,11 +113,11 @@ public class VulkanDescriptorSet extends VulkanHandle<Long> {
 		}
 
 		public static class ImageInfo {
-			public VulkanHandle<Long> sampler;    // TODO: Implement Image Sampler
-			public VulkanImageView    imageView;
-			public int                imageLayout;
+			public VulkanSampler   sampler;
+			public VulkanImageView imageView;
+			public int             imageLayout;
 
-			public ImageInfo(VulkanHandle<Long> sampler, VulkanImageView imageView, int imageLayout) {
+			public ImageInfo(VulkanSampler sampler, VulkanImageView imageView, int imageLayout) {
 				this.sampler     = sampler;
 				this.imageView   = imageView;
 				this.imageLayout = imageLayout;

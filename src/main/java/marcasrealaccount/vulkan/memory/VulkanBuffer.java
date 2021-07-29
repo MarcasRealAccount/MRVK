@@ -16,7 +16,7 @@ import marcasrealaccount.vulkan.VulkanHandle;
 public class VulkanBuffer extends VulkanHandle<Long> {
 	public final VulkanMemoryAllocator memoryAllocator;
 
-	private long allocationHandle = 0L;
+	private long allocHandle = 0L;
 
 	public long                   size        = 0;
 	public int                    usage       = VK12.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -57,8 +57,8 @@ public class VulkanBuffer extends VulkanHandle<Long> {
 
 			if (Vma.vmaCreateBuffer(this.memoryAllocator.getHandle(), createInfo, allocationCreateInfo, pBuffer, pAllocation,
 					null) == VK12.VK_SUCCESS) {
-				this.handle           = pBuffer.get(0);
-				this.allocationHandle = pAllocation.get(0);
+				this.handle      = pBuffer.get(0);
+				this.allocHandle = pAllocation.get(0);
 			}
 
 			if (pIndices != null) MemoryUtil.memFree(pIndices);
@@ -67,8 +67,8 @@ public class VulkanBuffer extends VulkanHandle<Long> {
 
 	@Override
 	protected void destroyAbstract() {
-		Vma.vmaDestroyBuffer(this.memoryAllocator.getHandle(), this.handle, this.allocationHandle);
-		this.allocationHandle = 0L;
+		Vma.vmaDestroyBuffer(this.memoryAllocator.getHandle(), this.handle, this.allocHandle);
+		this.allocHandle = 0L;
 	}
 
 	@Override
@@ -77,20 +77,20 @@ public class VulkanBuffer extends VulkanHandle<Long> {
 	}
 
 	public long getAllocationHandle() {
-		return this.allocationHandle;
+		return this.allocHandle;
 	}
 
 	public ByteBuffer mapMemory() {
 		try (var stack = MemoryStack.stackPush()) {
 			var ppData = stack.mallocPointer(1);
 
-			if (Vma.vmaMapMemory(this.memoryAllocator.getHandle(), this.allocationHandle, ppData) == VK12.VK_SUCCESS)
+			if (Vma.vmaMapMemory(this.memoryAllocator.getHandle(), this.allocHandle, ppData) == VK12.VK_SUCCESS)
 				return MemoryUtil.memByteBuffer(ppData.get(0), (int) Math.min(this.size, Integer.MAX_VALUE));
 			return ByteBuffer.wrap(null);
 		}
 	}
 
 	public void unmapMemory() {
-		Vma.vmaUnmapMemory(this.memoryAllocator.getHandle(), this.allocationHandle);
+		Vma.vmaUnmapMemory(this.memoryAllocator.getHandle(), this.allocHandle);
 	}
 }

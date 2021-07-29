@@ -15,10 +15,12 @@ import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
 import marcasrealaccount.vulkan.VulkanHandle;
 import marcasrealaccount.vulkan.device.VulkanDevice;
 import marcasrealaccount.vulkan.image.VulkanImage;
+import marcasrealaccount.vulkan.memory.VulkanMemoryAllocator;
 
 public class VulkanSwapchain extends VulkanHandle<Long> {
-	public final VulkanDevice  device;
-	public final VulkanSurface surface;
+	public final VulkanMemoryAllocator memoryAllocator;
+	public final VulkanDevice          device;
+	public final VulkanSurface         surface;
 
 	private ArrayList<VulkanImage> images = null;
 
@@ -34,11 +36,13 @@ public class VulkanSwapchain extends VulkanHandle<Long> {
 	public boolean                clipped          = true;
 	public final HashSet<Integer> indices          = new HashSet<>();
 
-	public VulkanSwapchain(VulkanDevice device) {
+	public VulkanSwapchain(VulkanMemoryAllocator memoryAllocator) {
 		super(0L);
-		this.device  = device;
-		this.surface = this.device.physicalDevice.surface;
+		this.memoryAllocator = memoryAllocator;
+		this.device          = this.memoryAllocator.device;
+		this.surface         = this.device.physicalDevice.surface;
 
+		this.memoryAllocator.addChild(this);
 		this.device.addChild(this);
 		this.surface.addChild(this);
 	}
@@ -78,7 +82,7 @@ public class VulkanSwapchain extends VulkanHandle<Long> {
 				KHRSwapchain.vkGetSwapchainImagesKHR(this.device.getHandle(), this.handle, pImageCount, pImages);
 
 				this.images = new ArrayList<>(pImages.capacity());
-				for (int i = 0; i < pImages.capacity(); ++i) images.add(new VulkanImage(this.device, pImages.get(i)));
+				for (int i = 0; i < pImages.capacity(); ++i) images.add(new VulkanImage(this.memoryAllocator, pImages.get(i)));
 
 				MemoryUtil.memFree(pImages);
 			}
@@ -95,6 +99,7 @@ public class VulkanSwapchain extends VulkanHandle<Long> {
 
 	@Override
 	protected void removeAbstract() {
+		this.memoryAllocator.removeChild(this);
 		this.device.removeChild(this);
 		this.surface.removeChild(this);
 	}
