@@ -1,4 +1,4 @@
-package marcasrealaccount.vulkan.device;
+package marcasrealaccount.vulkan.device.util;
 
 import org.lwjgl.vulkan.VkPhysicalDevice;
 

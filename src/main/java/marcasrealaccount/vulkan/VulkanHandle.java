@@ -4,23 +4,23 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 public abstract class VulkanHandle<T> {
-	protected T nullHandle;
-	protected T handle;
-	private boolean destroyable;
-	private boolean created = false;
+	protected T       nullHandle;
+	protected T       handle;
+	private boolean   destroyable;
+	private boolean   created  = false;
 	protected boolean recreate = false;
 
-	private Iterator<VulkanHandle<?>> destroyIterator = null;
-	private VulkanHandle<?> destroyCurrentHandle = null;
-	private final ArrayList<VulkanHandle<?>> destroyedChildren = new ArrayList<>();
-	private final ArrayList<VulkanHandle<?>> children = new ArrayList<>();
+	private Iterator<VulkanHandle<?>>        destroyIterator      = null;
+	private VulkanHandle<?>                  destroyCurrentHandle = null;
+	private final ArrayList<VulkanHandle<?>> destroyedChildren    = new ArrayList<>();
+	private final ArrayList<VulkanHandle<?>> children             = new ArrayList<>();
 
 	public VulkanHandle(T nullHandle) {
 		this(nullHandle, true);
 	}
 
 	public VulkanHandle(T nullHandle, boolean destroyable) {
-		this.handle = this.nullHandle = nullHandle;
+		this.handle      = this.nullHandle = nullHandle;
 		this.destroyable = destroyable;
 	}
 
@@ -34,8 +34,7 @@ public abstract class VulkanHandle<T> {
 		createAbstract();
 		this.created = isValid();
 		if (pCreated && this.created) {
-			for (var child : this.destroyedChildren)
-				child.create();
+			for (var child : this.destroyedChildren) child.create();
 			this.destroyedChildren.clear();
 		}
 		this.recreate = false;
@@ -43,28 +42,24 @@ public abstract class VulkanHandle<T> {
 	}
 
 	public final void destroy() {
-		if (this.recreate)
-			this.destroyedChildren.clear();
+		if (this.recreate) this.destroyedChildren.clear();
 		this.destroyIterator = this.children.iterator();
 		while (this.destroyIterator.hasNext()) {
 			this.destroyCurrentHandle = this.destroyIterator.next();
 			if (this.destroyCurrentHandle.isValid()) {
 				this.destroyCurrentHandle.destroy();
-				if (this.recreate && this.destroyCurrentHandle.destroyable)
-					this.destroyedChildren.add(this.destroyCurrentHandle);
+				if (this.recreate && this.destroyCurrentHandle.destroyable) this.destroyedChildren.add(this.destroyCurrentHandle);
 			}
 		}
-		this.destroyIterator = null;
+		this.destroyIterator      = null;
 		this.destroyCurrentHandle = null;
 
-		if (this.destroyable && this.handle != this.nullHandle)
-			destroyAbstract();
+		if (this.destroyable && this.handle != this.nullHandle) destroyAbstract();
 		this.handle = this.nullHandle;
 	}
 
 	public final void remove() {
-		if (this.created)
-			destroy();
+		if (this.created) destroy();
 		removeAbstract();
 	}
 

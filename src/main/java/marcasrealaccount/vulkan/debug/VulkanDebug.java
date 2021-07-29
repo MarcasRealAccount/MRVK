@@ -25,13 +25,12 @@ public class VulkanDebug extends VulkanHandle<Long> {
 	@Override
 	protected void createAbstract() {
 		try (var stack = MemoryStack.stackPush()) {
-			var createInfo = VkDebugUtilsMessengerCreateInfoEXT.mallocStack(stack);
+			var createInfo      = VkDebugUtilsMessengerCreateInfoEXT.mallocStack(stack);
 			var pDebugMessenger = stack.mallocLong(1);
 
 			populateCreateInfo(createInfo);
 
-			if (EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(this.instance.getHandle(), createInfo, null,
-					pDebugMessenger) == VK12.VK_SUCCESS)
+			if (EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(this.instance.getHandle(), createInfo, null, pDebugMessenger) == VK12.VK_SUCCESS)
 				this.handle = pDebugMessenger.get(0);
 		}
 	}
@@ -56,28 +55,25 @@ public class VulkanDebug extends VulkanHandle<Long> {
 
 	public static String getTypes(int types) {
 		var added = false;
-		var str = "";
+		var str   = "";
 		if ((types & EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) != 0) {
-			added = true;
-			str += "General";
+			added  = true;
+			str   += "General";
 			types &= ~EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
 		}
 		if ((types & EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) != 0) {
-			if (added)
-				str += " | ";
-			added = true;
-			str += "Validation";
+			if (added) str += " | ";
+			added  = true;
+			str   += "Validation";
 			types &= ~EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
 		}
 		if ((types & EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) != 0) {
-			if (added)
-				str += " | ";
-			added = true;
-			str += "Performance";
+			if (added) str += " | ";
+			added  = true;
+			str   += "Performance";
 			types &= ~EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		}
-		if (types != 0)
-			str = "(" + str + ") + " + types;
+		if (types != 0) str = "(" + str + ") + " + types;
 		return str;
 	}
 
@@ -108,12 +104,9 @@ public class VulkanDebug extends VulkanHandle<Long> {
 
 	public static void populateCreateInfo(VkDebugUtilsMessengerCreateInfoEXT createInfo) {
 		createInfo.set(EXTDebugUtils.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT, 0, 0,
-				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
-						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
 						| EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
 				VulkanDebug::debugCallback, 0);
 	}

@@ -19,23 +19,23 @@ import net.minecraft.client.util.Window;
 @Mixin(Window.class)
 public abstract class MixinWindow {
 	private static final String INITIALIZER_METHOD = "<init>(Lnet/minecraft/client/WindowEventHandler;Lnet/minecraft/client/util/MonitorTracker;Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V";
-	private static final String CLOSE_METHOD = "close()V";
-	private static final String SET_VSYNC_METHOD = "setVsync(Z)V";
+	private static final String CLOSE_METHOD       = "close()V";
+	private static final String SET_VSYNC_METHOD   = "setVsync(Z)V";
 
-	private static final String GLFW_CREATE_WINDOW_METHOD = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J";
+	private static final String GLFW_CREATE_WINDOW_METHOD        = "Lorg/lwjgl/glfw/GLFW;glfwCreateWindow(IILjava/lang/CharSequence;JJ)J";
 	private static final String GLFW_MAKE_CONTEXT_CURRENT_METHOD = "Lorg/lwjgl/glfw/GLFW;glfwMakeContextCurrent(J)V";
-	private static final String GLFW_FREE_CALLBACKS_METHOD = "Lorg/lwjgl/glfw/Callbacks;glfwFreeCallbacks(J)V";
-	private static final String GLFW_SWAP_INTERVAL_METHOD = "Lorg/lwjgl/glfw/GLFW;glfwSwapInterval(I)V";
-	private static final String GL_CREATE_CAPABILITIES_METHOD = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;";
+	private static final String GLFW_FREE_CALLBACKS_METHOD       = "Lorg/lwjgl/glfw/Callbacks;glfwFreeCallbacks(J)V";
+	private static final String GLFW_SWAP_INTERVAL_METHOD        = "Lorg/lwjgl/glfw/GLFW;glfwSwapInterval(I)V";
+	private static final String GL_CREATE_CAPABILITIES_METHOD    = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;";
 
 	@Shadow
-	private long handle;
+	private long    handle;
 	@Shadow
 	private boolean vsync;
 
 	@Inject(at = @At(value = "INVOKE", target = GLFW_CREATE_WINDOW_METHOD, ordinal = 0), method = INITIALIZER_METHOD)
-	private void initializerChangeWindowHints(WindowEventHandler eventHandler, MonitorTracker monitorTracker,
-			WindowSettings settings, @Nullable String videoMode, String title, CallbackInfo info) {
+	private void initializerChangeWindowHints(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings,
+			@Nullable String videoMode, String title, CallbackInfo info) {
 		GLFW.glfwDefaultWindowHints();
 		GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
 	}

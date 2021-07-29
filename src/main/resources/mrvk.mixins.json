@@ -11,7 +11,8 @@
 		"com.mojang.blaze3d.systems.MixinRenderSystem",
 		"net.minecraft.client.MixinMinecraftClient",
 		"net.minecraft.client.util.MixinWindow",
-		"net.minecraft.client.gl.MixinGlDebug"
+		"net.minecraft.client.gl.MixinGlDebug",
+		"net.minecraft.util.math.MixinMatrix4f"
 	],
 	"server": [
 	],

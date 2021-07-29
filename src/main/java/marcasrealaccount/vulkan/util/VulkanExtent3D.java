@@ -6,8 +6,8 @@ public class VulkanExtent3D {
 	public int width, height, depth;
 
 	public void set(VkExtent3D extent) {
-		this.width = extent.width();
+		this.width  = extent.width();
 		this.height = extent.height();
-		this.depth = extent.depth();
+		this.depth  = extent.depth();
 	}
 }

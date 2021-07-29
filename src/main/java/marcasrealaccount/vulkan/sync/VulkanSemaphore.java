@@ -27,8 +27,7 @@ public class VulkanSemaphore extends VulkanHandle<Long> {
 
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, 0, 0);
 
-			if (VK12.vkCreateSemaphore(this.device.getHandle(), createInfo, null, pSemaphore) == VK12.VK_SUCCESS)
-				this.handle = pSemaphore.get(0);
+			if (VK12.vkCreateSemaphore(this.device.getHandle(), createInfo, null, pSemaphore) == VK12.VK_SUCCESS) this.handle = pSemaphore.get(0);
 		}
 	}
 
@@ -55,24 +54,19 @@ public class VulkanSemaphore extends VulkanHandle<Long> {
 	}
 
 	public static void waitForSemaphores(VulkanSemaphore[] semaphores, long timeout) {
-		if (semaphores.length == 0)
-			return;
+		if (semaphores.length == 0) return;
 
 		VulkanDevice device = semaphores[0].device;
-		for (int i = 0; i < semaphores.length; ++i)
-			if (semaphores[i].device != device)
-				return;
+		for (int i = 0; i < semaphores.length; ++i) if (semaphores[i].device != device) return;
 
 		try (var stack = MemoryStack.stackPush()) {
-			var waitInfo = VkSemaphoreWaitInfo.mallocStack(stack);
+			var waitInfo    = VkSemaphoreWaitInfo.mallocStack(stack);
 			var pSemaphores = MemoryUtil.memAllocLong(semaphores.length);
-			var pValues = MemoryUtil.memAllocLong(semaphores.length);
+			var pValues     = MemoryUtil.memAllocLong(semaphores.length);
 
-			for (int i = 0; i < semaphores.length; ++i)
-				pSemaphores.put(i, semaphores[i].getHandle());
+			for (int i = 0; i < semaphores.length; ++i) pSemaphores.put(i, semaphores[i].getHandle());
 
-			waitInfo.set(VK12.VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO, 0, 0, pSemaphores.capacity(), pSemaphores,
-					pValues);
+			waitInfo.set(VK12.VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO, 0, 0, pSemaphores.capacity(), pSemaphores, pValues);
 
 			VK12.vkWaitSemaphores(device.getHandle(), waitInfo, timeout);
 

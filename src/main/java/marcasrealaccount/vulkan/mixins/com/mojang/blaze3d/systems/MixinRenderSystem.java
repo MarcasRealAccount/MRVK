@@ -27,6 +27,5 @@ public abstract class MixinRenderSystem {
 	}
 
 	@Shadow
-	public static void replayQueue() {
-	}
+	public static void replayQueue() {}
 }

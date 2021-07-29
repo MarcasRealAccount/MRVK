@@ -25,8 +25,7 @@ public class VulkanSurface extends VulkanHandle<Long> {
 	protected void createAbstract() {
 		try (var stack = MemoryStack.stackPush()) {
 			var pSurface = stack.mallocLong(1);
-			if (GLFWVulkan.glfwCreateWindowSurface(this.instance.getHandle(), this.windowHandle, null,
-					pSurface) == VK12.VK_SUCCESS)
+			if (GLFWVulkan.glfwCreateWindowSurface(this.instance.getHandle(), this.windowHandle, null, pSurface) == VK12.VK_SUCCESS)
 				this.handle = pSurface.get(0);
 		}
 	}

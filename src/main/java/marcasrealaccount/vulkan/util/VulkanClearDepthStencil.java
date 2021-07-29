@@ -4,10 +4,10 @@ import org.lwjgl.vulkan.VkClearValue;
 
 public class VulkanClearDepthStencil extends VulkanClearValue {
 	public float depth;
-	public int stencil;
+	public int   stencil;
 
 	public VulkanClearDepthStencil(float depth, int stencil) {
-		this.depth = depth;
+		this.depth   = depth;
 		this.stencil = stencil;
 	}
 

@@ -29,7 +29,7 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 	@Override
 	protected void createAbstract() {
 		try (var stack = MemoryStack.stackPush()) {
-			var createInfo = VkCommandPoolCreateInfo.mallocStack(stack);
+			var createInfo   = VkCommandPoolCreateInfo.mallocStack(stack);
 			var pCommandPool = stack.mallocLong(1);
 
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, 0, 0, this.queueFamilyIndex);
@@ -42,9 +42,7 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 	@Override
 	protected void destroyAbstract() {
 		VK12.vkDestroyCommandPool(this.device.getHandle(), this.handle, null);
-		for (var commandBuffers : this.commandBufferLevels.values())
-			for (var commandBuffer : commandBuffers)
-				commandBuffer.remove();
+		for (var commandBuffers : this.commandBufferLevels.values()) for (var commandBuffer : commandBuffers) commandBuffer.remove();
 		this.commandBufferLevels.clear();
 	}
 
@@ -61,13 +59,12 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 		var buffers = new ArrayList<VulkanCommandBuffer>();
 
 		try (var stack = MemoryStack.stackPush()) {
-			var allocateInfo = VkCommandBufferAllocateInfo.mallocStack(stack);
+			var allocateInfo    = VkCommandBufferAllocateInfo.mallocStack(stack);
 			var pCommandBuffers = stack.mallocPointer(count);
 
 			allocateInfo.set(VK12.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, 0, this.handle, level, count);
 
-			if (VK12.vkAllocateCommandBuffers(this.device.getHandle(), allocateInfo,
-					pCommandBuffers) == VK12.VK_SUCCESS) {
+			if (VK12.vkAllocateCommandBuffers(this.device.getHandle(), allocateInfo, pCommandBuffers) == VK12.VK_SUCCESS) {
 				var commandBuffers = this.commandBufferLevels.get(level);
 				if (commandBuffers == null) {
 					commandBuffers = new ArrayList<>();
@@ -75,8 +72,7 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 				}
 
 				for (int i = 0; i < count; ++i) {
-					var buffer = new VulkanCommandBuffer(this,
-							new VkCommandBuffer(pCommandBuffers.get(i), this.device.getHandle()), level);
+					var buffer = new VulkanCommandBuffer(this, new VkCommandBuffer(pCommandBuffers.get(i), this.device.getHandle()), level);
 					commandBuffers.add(buffer);
 					buffers.add(buffer);
 				}
@@ -88,14 +84,12 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 
 	public VulkanCommandBuffer getCommandBuffer(int level, int index) {
 		var commandBuffers = this.commandBufferLevels.get(level);
-		return commandBuffers != null ? index >= 0 && index < commandBuffers.size() ? commandBuffers.get(index) : null
-				: null;
+		return commandBuffers != null ? index >= 0 && index < commandBuffers.size() ? commandBuffers.get(index) : null : null;
 	}
 
 	public ArrayList<VulkanCommandBuffer> getCommandBuffers() {
 		var buffers = new ArrayList<VulkanCommandBuffer>();
-		for (var value : this.commandBufferLevels.values())
-			buffers.addAll(value);
+		for (var value : this.commandBufferLevels.values()) buffers.addAll(value);
 		return buffers;
 	}
 }

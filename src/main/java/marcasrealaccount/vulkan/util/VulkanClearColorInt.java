@@ -4,7 +4,7 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkClearValue;
 
 public class VulkanClearColorInt extends VulkanClearValue {
-	public int r, g, b, a;
+	public int     r, g, b, a;
 	public boolean unsigned;
 
 	public VulkanClearColorInt(int r, int g, int b, int a) {
@@ -12,10 +12,10 @@ public class VulkanClearColorInt extends VulkanClearValue {
 	}
 
 	public VulkanClearColorInt(int r, int g, int b, int a, boolean unsigned) {
-		this.r = r;
-		this.g = g;
-		this.b = b;
-		this.a = a;
+		this.r        = r;
+		this.g        = g;
+		this.b        = b;
+		this.a        = a;
 		this.unsigned = unsigned;
 	}
 

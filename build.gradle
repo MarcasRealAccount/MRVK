@@ -60,6 +60,7 @@ dependencies {
 	implementation "org.lwjgl:lwjgl-shaderc:${project.lwjgl_version}"
 	implementation "org.lwjgl:lwjgl-stb:${project.lwjgl_version}"
 	implementation "org.lwjgl:lwjgl-tinyfd:${project.lwjgl_version}"
+	implementation "org.lwjgl:lwjgl-vma:${project.lwjgl_version}"
 	implementation "org.lwjgl:lwjgl-vulkan:${project.lwjgl_version}"
 	runtimeOnly "org.lwjgl:lwjgl:${project.lwjgl_version}:$lwjglNatives"
 	runtimeOnly "org.lwjgl:lwjgl-glfw:${project.lwjgl_version}:$lwjglNatives"
@@ -68,6 +69,7 @@ dependencies {
 	runtimeOnly "org.lwjgl:lwjgl-shaderc:${project.lwjgl_version}:$lwjglNatives"
 	runtimeOnly "org.lwjgl:lwjgl-stb:${project.lwjgl_version}:$lwjglNatives"
 	runtimeOnly "org.lwjgl:lwjgl-tinyfd:${project.lwjgl_version}:$lwjglNatives"
+	runtimeOnly "org.lwjgl:lwjgl-vma:${project.lwjgl_version}:$lwjglNatives"
 	if (lwjglNatives == "natives-macos") runtimeOnly "org.lwjgl:lwjgl-vulkan:${project.lwjgl_version}:$lwjglNatives"
 }
 

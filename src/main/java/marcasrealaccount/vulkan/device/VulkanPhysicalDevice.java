@@ -11,29 +11,32 @@ import org.lwjgl.vulkan.VkLayerProperties;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 
 import marcasrealaccount.vulkan.VulkanHandle;
+import marcasrealaccount.vulkan.device.util.IVulkanPhysicalDeviceScorer;
+import marcasrealaccount.vulkan.device.util.VulkanPhysicalDeviceMemoryProperties;
+import marcasrealaccount.vulkan.device.util.VulkanQueueFamilyIndices;
+import marcasrealaccount.vulkan.device.util.VulkanSwapchainSupportDetails;
 import marcasrealaccount.vulkan.instance.VulkanInstance;
 import marcasrealaccount.vulkan.surface.VulkanSurface;
 import marcasrealaccount.vulkan.util.VulkanExtension;
 import marcasrealaccount.vulkan.util.VulkanLayer;
-import marcasrealaccount.vulkan.util.VulkanQueueFamilyIndices;
-import marcasrealaccount.vulkan.util.VulkanSwapchainSupportDetails;
 
 public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 	public final VulkanInstance instance;
-	public final VulkanSurface surface;
+	public final VulkanSurface  surface;
 
 	public IVulkanPhysicalDeviceScorer scorer = null;
 
-	private VulkanQueueFamilyIndices indices = null;
-	private VulkanSwapchainSupportDetails swapchainSupportDetails = null;
+	public final VulkanQueueFamilyIndices             indices                 = new VulkanQueueFamilyIndices();
+	public final VulkanSwapchainSupportDetails        swapchainSupportDetails = new VulkanSwapchainSupportDetails();
+	public final VulkanPhysicalDeviceMemoryProperties memoryProperties        = new VulkanPhysicalDeviceMemoryProperties();
 
 	private ArrayList<VulkanExtension> availableExtensions;
-	private ArrayList<VulkanLayer> availableLayers;
+	private ArrayList<VulkanLayer>     availableLayers;
 
 	public VulkanPhysicalDevice(VulkanInstance instance, VulkanSurface surface) {
 		super(null, false);
 		this.instance = instance;
-		this.surface = surface;
+		this.surface  = surface;
 
 		this.instance.addChild(this);
 		this.surface.addChild(this);
@@ -41,14 +44,35 @@ public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 
 	@Override
 	protected void createAbstract() {
+		try (var stack = MemoryStack.stackPush()) {
+			var deviceCount = stack.mallocInt(1);
+			VK12.vkEnumeratePhysicalDevices(this.instance.getHandle(), deviceCount, null);
+			if (deviceCount.get(0) == 0) return;
+
+			var pDevices = MemoryUtil.memAllocPointer(deviceCount.get(0));
+			VK12.vkEnumeratePhysicalDevices(this.instance.getHandle(), deviceCount, pDevices);
+
+			VkPhysicalDevice bestPhysicalDevice = null;
+			long             bestScore          = -1;
+
+			for (int i = 0; i < pDevices.capacity(); ++i) {
+				var  physicalDevice = new VkPhysicalDevice(pDevices.get(i), this.instance.getHandle());
+				long score          = this.scorer.score(physicalDevice);
+				if (score > bestScore) {
+					bestScore          = score;
+					bestPhysicalDevice = physicalDevice;
+				}
+			}
+
+			MemoryUtil.memFree(pDevices);
+
+			this.handle = bestPhysicalDevice;
+		}
 		update();
 	}
 
 	@Override
-	protected void destroyAbstract() {
-		this.indices = null;
-		this.swapchainSupportDetails = null;
-	}
+	protected void destroyAbstract() {}
 
 	@Override
 	protected void removeAbstract() {
@@ -57,72 +81,32 @@ public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 	}
 
 	public void update() {
-		try (var stack = MemoryStack.stackPush()) {
-			var deviceCount = stack.mallocInt(1);
-			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, null);
-			if (deviceCount.get(0) == 0)
-				return;
-
-			var pDevices = MemoryUtil.memAllocPointer(deviceCount.get(0));
-			VK12.vkEnumeratePhysicalDevices(instance.getHandle(), deviceCount, pDevices);
-
-			VkPhysicalDevice bestPhysicalDevice = null;
-			long bestScore = -1;
-
-			for (int i = 0; i < pDevices.capacity(); ++i) {
-				var physicalDevice = new VkPhysicalDevice(pDevices.get(i), instance.getHandle());
-				long score = scorer.score(physicalDevice);
-				if (score > bestScore) {
-					bestScore = score;
-					bestPhysicalDevice = physicalDevice;
-				}
-			}
-
-			MemoryUtil.memFree(pDevices);
-
-			this.handle = bestPhysicalDevice;
-			if (this.handle != null) {
-				this.indices = VulkanQueueFamilyIndices.getIndices(bestPhysicalDevice, surface);
-				this.swapchainSupportDetails = VulkanSwapchainSupportDetails.getSupport(bestPhysicalDevice, surface);
-			}
+		if (this.handle != null) {
+			this.indices.getIndices(this);
+			this.swapchainSupportDetails.getSupport(this);
+			this.memoryProperties.getProperties(this);
 		}
-	}
-
-	public VulkanQueueFamilyIndices getIndices() {
-		return this.indices;
-	}
-
-	public VulkanSwapchainSupportDetails getSwapchainSupportDetails() {
-		return this.swapchainSupportDetails;
 	}
 
 	public boolean hasExtension(String name, int minVersion) {
 		queryAvailableExtensions();
-		for (var extension : this.availableExtensions)
-			if (extension.name.equals(name) && extension.version > minVersion)
-				return true;
+		for (var extension : this.availableExtensions) if (extension.name.equals(name) && extension.version > minVersion) return true;
 		return false;
 	}
 
 	public boolean hasLayer(String name, int minVersion) {
 		queryAvailableLayers();
-		for (var layer : this.availableLayers)
-			if (layer.name.equals(name) && layer.version > minVersion)
-				return true;
+		for (var layer : this.availableLayers) if (layer.name.equals(name) && layer.version > minVersion) return true;
 		return false;
 	}
 
 	public boolean validateExtensions(List<VulkanExtension> extensions) {
-		for (var extension : extensions)
-			if (!hasExtension(extension.name, extension.version))
-				return false;
+		for (var extension : extensions) if (!hasExtension(extension.name, extension.version)) return false;
 		return true;
 	}
 
 	public boolean validateLayer(List<VulkanLayer> layers) {
-		for (var layer : layers)
-			if (!hasLayer(layer.name, layer.version))
-				return false;
+		for (var layer : layers) if (!hasLayer(layer.name, layer.version)) return false;
 		return true;
 	}
 
@@ -135,8 +119,7 @@ public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 	}
 
 	private void queryAvailableExtensions() {
-		if (this.availableExtensions != null)
-			return;
+		if (this.availableExtensions != null) return;
 
 		try (var stack = MemoryStack.stackPush()) {
 			var extensionCount = stack.mallocInt(1);
@@ -146,16 +129,14 @@ public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 
 			this.availableExtensions = new ArrayList<>(extensions.capacity());
 			for (var extension : extensions)
-				this.availableExtensions
-						.add(new VulkanExtension(extension.extensionNameString(), extension.specVersion()));
+				this.availableExtensions.add(new VulkanExtension(extension.extensionNameString(), extension.specVersion()));
 
 			extensions.free();
 		}
 	}
 
 	private void queryAvailableLayers() {
-		if (this.availableLayers != null)
-			return;
+		if (this.availableLayers != null) return;
 
 		try (var stack = MemoryStack.stackPush()) {
 			var layerCount = stack.mallocInt(1);
@@ -164,8 +145,7 @@ public class VulkanPhysicalDevice extends VulkanHandle<VkPhysicalDevice> {
 			VK12.vkEnumerateDeviceLayerProperties(this.handle, layerCount, layers);
 
 			this.availableLayers = new ArrayList<>(layers.capacity());
-			for (var layer : layers)
-				this.availableLayers.add(new VulkanLayer(layer.layerNameString(), layer.specVersion()));
+			for (var layer : layers) this.availableLayers.add(new VulkanLayer(layer.layerNameString(), layer.specVersion()));
 
 			layers.free();
 		}

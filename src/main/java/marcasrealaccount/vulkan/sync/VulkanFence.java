@@ -23,13 +23,11 @@ public class VulkanFence extends VulkanHandle<Long> {
 	protected void createAbstract() {
 		try (var stack = MemoryStack.stackPush()) {
 			var createInfo = VkFenceCreateInfo.mallocStack(stack);
-			var pFence = stack.mallocLong(1);
+			var pFence     = stack.mallocLong(1);
 
-			createInfo.set(VK12.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0,
-					this.signaled ? VK12.VK_FENCE_CREATE_SIGNALED_BIT : 0);
+			createInfo.set(VK12.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0, this.signaled ? VK12.VK_FENCE_CREATE_SIGNALED_BIT : 0);
 
-			if (VK12.vkCreateFence(this.device.getHandle(), createInfo, null, pFence) == VK12.VK_SUCCESS)
-				this.handle = pFence.get(0);
+			if (VK12.vkCreateFence(this.device.getHandle(), createInfo, null, pFence) == VK12.VK_SUCCESS) this.handle = pFence.get(0);
 		}
 	}
 

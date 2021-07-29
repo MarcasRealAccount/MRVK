@@ -30,16 +30,16 @@ public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 
 			var pBindings = VkDescriptorSetLayoutBinding.malloc(this.bindings.size());
 			for (int i = 0; i < this.bindings.size(); ++i) {
-				var binding = this.bindings.get(i);
+				var binding  = this.bindings.get(i);
 				var pBinding = pBindings.get(i);
-				pBinding.set(binding.binding, binding.descriptorType, binding.descriptorCount, binding.stageFlags,
-						null); // TODO: Implement immutable image samplers
+				pBinding.set(binding.binding, binding.descriptorType, binding.descriptorCount, binding.stageFlags, null);
+				// TODO: Implement immutable
+				// image samplers
 			}
 
 			createInfo.set(VK12.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, pBindings);
 
-			if (VK12.vkCreateDescriptorSetLayout(this.device.getHandle(), createInfo, null,
-					pSetLayout) == VK12.VK_SUCCESS)
+			if (VK12.vkCreateDescriptorSetLayout(this.device.getHandle(), createInfo, null, pSetLayout) == VK12.VK_SUCCESS)
 				this.handle = pSetLayout.get(0);
 
 			pBindings.free();
@@ -61,5 +61,12 @@ public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 		public int descriptorType;
 		public int descriptorCount;
 		public int stageFlags;
+
+		public Binding(int binding, int descriptorType, int descriptorCount, int stageFlags) {
+			this.binding         = binding;
+			this.descriptorType  = descriptorType;
+			this.descriptorCount = descriptorCount;
+			this.stageFlags      = stageFlags;
+		}
 	}
 }

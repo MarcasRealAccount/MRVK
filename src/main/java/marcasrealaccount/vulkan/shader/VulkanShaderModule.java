@@ -23,7 +23,7 @@ public class VulkanShaderModule extends VulkanHandle<Long> {
 	@Override
 	protected void createAbstract() {
 		try (var stack = MemoryStack.stackPush()) {
-			var createInfo = VkShaderModuleCreateInfo.mallocStack(stack);
+			var createInfo    = VkShaderModuleCreateInfo.mallocStack(stack);
 			var pShaderModule = stack.mallocLong(1);
 
 			var pCode = MemoryUtil.memAlloc(code.length);

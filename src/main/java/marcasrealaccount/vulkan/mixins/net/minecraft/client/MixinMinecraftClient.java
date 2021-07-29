@@ -10,9 +10,9 @@ import net.minecraft.client.MinecraftClient;
 
 @Mixin(MinecraftClient.class)
 public abstract class MixinMinecraftClient {
-	private static final String ON_RESOLUTION_CHANGED_METHOD = "onResolutionChanged()V";
+	private static final String ON_RESOLUTION_CHANGED_METHOD   = "onResolutionChanged()V";
 	private static final String ON_CURSOR_ENTER_CHANGED_METHOD = "onCursorEnterChanged()V";
-
+	
 	@Inject(at = @At("HEAD"), cancellable = true, method = ON_RESOLUTION_CHANGED_METHOD)
 	private void onResolutionChangedUpdateSwapchain(CallbackInfo info) {
 		Vulkan.INSTANCE.recreateSwapchain();
