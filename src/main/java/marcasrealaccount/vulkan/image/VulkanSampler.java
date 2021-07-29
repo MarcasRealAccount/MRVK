@@ -53,8 +53,9 @@ public class VulkanSampler extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroySampler(this.device.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

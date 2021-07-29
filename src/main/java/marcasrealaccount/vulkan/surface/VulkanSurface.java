@@ -31,8 +31,9 @@ public class VulkanSurface extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		KHRSurface.vkDestroySurfaceKHR(this.instance.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

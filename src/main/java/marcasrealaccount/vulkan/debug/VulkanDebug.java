@@ -36,8 +36,9 @@ public class VulkanDebug extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT(this.instance.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

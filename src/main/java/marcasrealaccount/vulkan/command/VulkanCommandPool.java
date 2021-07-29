@@ -40,10 +40,11 @@ public class VulkanCommandPool extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyCommandPool(this.device.getHandle(), this.handle, null);
 		for (var commandBuffers : this.commandBufferLevels.values()) for (var commandBuffer : commandBuffers) commandBuffer.remove();
 		this.commandBufferLevels.clear();
+		return true;
 	}
 
 	@Override

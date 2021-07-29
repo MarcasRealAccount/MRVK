@@ -57,10 +57,11 @@ public class VulkanFramebuffer extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyFramebuffer(this.device.getHandle(), this.handle, null);
 		for (var attachment : this.usedAttachments) attachment.removeChild(this);
 		this.usedAttachments.clear();
+		return true;
 	}
 
 	@Override

@@ -58,10 +58,11 @@ public class VulkanPipelineLayout extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyPipelineLayout(this.device.getHandle(), this.handle, null);
 		for (var setLayout : this.usedSetLayouts) setLayout.removeChild(this);
 		this.usedSetLayouts.clear();
+		return true;
 	}
 
 	@Override

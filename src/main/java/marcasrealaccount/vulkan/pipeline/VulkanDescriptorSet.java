@@ -31,7 +31,9 @@ public class VulkanDescriptorSet extends VulkanHandle<Long> {
 	protected void createAbstract() {}
 
 	@Override
-	protected void destroyAbstract() {}
+	protected boolean destroyAbstract() {
+		return true;
+	}
 
 	@Override
 	protected void removeAbstract() {

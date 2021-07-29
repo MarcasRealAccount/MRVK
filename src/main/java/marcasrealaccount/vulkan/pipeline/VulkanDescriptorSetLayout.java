@@ -47,8 +47,9 @@ public class VulkanDescriptorSetLayout extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyDescriptorSetLayout(this.device.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

@@ -51,20 +51,20 @@ public class VulkanInstance extends VulkanHandle<VkInstance> {
 
 			long pNext = 0;
 			if (VulkanDebug.isEnabled()) {
-//				var validationFeatures = VkValidationFeaturesEXT.mallocStack(stack);
-//				var enabledValidationFeatures = stack.mallocInt(4);
-//
-//				enabledValidationFeatures.put(0, EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
-//				enabledValidationFeatures.put(1, EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
-//				enabledValidationFeatures.put(2,
-//						EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
-//				enabledValidationFeatures.put(3,
-//						EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
-//				validationFeatures.set(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT, 0,
-//						enabledValidationFeatures, null);
+				// var validationFeatures = VkValidationFeaturesEXT.mallocStack(stack);
+				// var enabledValidationFeatures = stack.mallocInt(4);
+				//
+				// enabledValidationFeatures.put(0, EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
+				// enabledValidationFeatures.put(1, EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
+				// enabledValidationFeatures.put(2,
+				// EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
+				// enabledValidationFeatures.put(3,
+				// EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
+				// validationFeatures.set(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT, 0,
+				// enabledValidationFeatures, null);
 				var debugCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.mallocStack(stack);
 				VulkanDebug.populateCreateInfo(debugCreateInfo);
-//				debugCreateInfo.pNext(validationFeatures.address());
+				// debugCreateInfo.pNext(validationFeatures.address());
 				pNext = debugCreateInfo.address();
 			}
 
@@ -88,8 +88,9 @@ public class VulkanInstance extends VulkanHandle<VkInstance> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyInstance(this.handle, null);
+		return true;
 	}
 
 	@Override

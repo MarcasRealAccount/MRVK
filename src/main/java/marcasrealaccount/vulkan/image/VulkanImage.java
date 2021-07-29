@@ -87,9 +87,10 @@ public class VulkanImage extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		Vma.vmaDestroyImage(this.memoryAllocator.getHandle(), this.handle, this.allocHandle);
 		this.allocHandle = 0L;
+		return true;
 	}
 
 	@Override

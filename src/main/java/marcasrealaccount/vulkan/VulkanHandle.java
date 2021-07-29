@@ -54,8 +54,7 @@ public abstract class VulkanHandle<T> {
 		this.destroyIterator      = null;
 		this.destroyCurrentHandle = null;
 
-		if (this.destroyable && this.handle != this.nullHandle) destroyAbstract();
-		this.handle = this.nullHandle;
+		if (this.destroyable && this.handle != this.nullHandle) if (destroyAbstract()) this.handle = this.nullHandle;
 	}
 
 	public final void remove() {
@@ -92,7 +91,7 @@ public abstract class VulkanHandle<T> {
 
 	protected abstract void createAbstract();
 
-	protected abstract void destroyAbstract();
+	protected abstract boolean destroyAbstract();
 
 	protected abstract void removeAbstract();
 }

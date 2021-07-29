@@ -54,7 +54,9 @@ public class VulkanCommandBuffer extends VulkanHandle<VkCommandBuffer> {
 	protected void createAbstract() {}
 
 	@Override
-	protected void destroyAbstract() {}
+	protected boolean destroyAbstract() {
+		return true;
+	}
 
 	@Override
 	protected void removeAbstract() {

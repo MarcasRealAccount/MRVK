@@ -73,8 +73,9 @@ public class VulkanDevice extends VulkanHandle<VkDevice> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyDevice(this.handle, null);
+		return true;
 	}
 
 	@Override

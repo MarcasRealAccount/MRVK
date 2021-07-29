@@ -37,7 +37,9 @@ public class VulkanQueue extends VulkanHandle<VkQueue> {
 	}
 
 	@Override
-	protected void destroyAbstract() {}
+	protected boolean destroyAbstract() {
+		return true;
+	}
 
 	@Override
 	protected void removeAbstract() {

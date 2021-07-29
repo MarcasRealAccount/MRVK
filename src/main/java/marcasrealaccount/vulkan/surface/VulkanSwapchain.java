@@ -92,9 +92,10 @@ public class VulkanSwapchain extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		if (!this.recreate) KHRSwapchain.vkDestroySwapchainKHR(this.device.getHandle(), this.handle, null);
 		this.images = null;
+		return !this.recreate;
 	}
 
 	@Override

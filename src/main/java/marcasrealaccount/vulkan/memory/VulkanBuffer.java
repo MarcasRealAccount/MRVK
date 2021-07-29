@@ -66,9 +66,10 @@ public class VulkanBuffer extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		Vma.vmaDestroyBuffer(this.memoryAllocator.getHandle(), this.handle, this.allocHandle);
 		this.allocHandle = 0L;
+		return true;
 	}
 
 	@Override

@@ -35,8 +35,9 @@ public class VulkanMemoryAllocator extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		Vma.vmaDestroyAllocator(this.handle);
+		return true;
 	}
 
 	@Override

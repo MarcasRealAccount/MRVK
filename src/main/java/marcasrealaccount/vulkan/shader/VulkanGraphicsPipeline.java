@@ -195,8 +195,9 @@ public class VulkanGraphicsPipeline extends VulkanPipeline {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyPipeline(this.device.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

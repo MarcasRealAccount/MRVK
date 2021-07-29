@@ -51,8 +51,9 @@ public class VulkanImageView extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyImageView(this.device.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override

@@ -59,7 +59,6 @@ import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Quaternion;
 import net.minecraft.util.math.Vec3f;
 
-// TODO: Fix "vkCreateSwapchainKHR: internal drawable creation failed" message from the Vulkan Validation layers when resizing window
 public class Vulkan {
 	public static final Vulkan INSTANCE             = new Vulkan();
 	private static final int   MAX_FRAMES_IN_FLIGHT = 2;

@@ -50,8 +50,9 @@ public class VulkanDescriptorPool extends VulkanHandle<Long> {
 	}
 
 	@Override
-	protected void destroyAbstract() {
+	protected boolean destroyAbstract() {
 		VK12.vkDestroyDescriptorPool(this.device.getHandle(), this.handle, null);
+		return true;
 	}
 
 	@Override
