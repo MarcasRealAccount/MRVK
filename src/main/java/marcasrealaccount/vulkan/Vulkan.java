@@ -47,6 +47,7 @@ import marcasrealaccount.vulkan.surface.VulkanSwapchain;
 import marcasrealaccount.vulkan.sync.VulkanFence;
 import marcasrealaccount.vulkan.sync.VulkanSemaphore;
 import marcasrealaccount.vulkan.util.VulkanClearColorFloat;
+import marcasrealaccount.vulkan.util.VulkanClearDepthStencil;
 import marcasrealaccount.vulkan.util.VulkanClearValue;
 import marcasrealaccount.vulkan.util.VulkanImageSubresourceLayers;
 import marcasrealaccount.vulkan.util.VulkanImageSubresourceRange;
@@ -75,13 +76,15 @@ public class Vulkan {
 	private boolean             vsync  = false, minimized = false;
 	private VulkanSurfaceFormat format = null;
 
-	private boolean                            recreateSwapchain = false;
-	private VulkanSwapchain                    swapchain         = new VulkanSwapchain(this.memoryAllocator);
-	private VulkanRenderPass                   renderPass        = new VulkanRenderPass(this.device);
-	private final ArrayList<VulkanImageView>   imageViews        = new ArrayList<>();
-	private final ArrayList<VulkanFramebuffer> framebuffers      = new ArrayList<>();
-	private final ArrayList<VulkanFence>       imagesInFlight    = new ArrayList<>();
-	private int                                currentImage      = 0;
+	private boolean                            recreateSwapchain        = false;
+	private VulkanSwapchain                    swapchain                = new VulkanSwapchain(this.memoryAllocator);
+	private VulkanRenderPass                   renderPass               = new VulkanRenderPass(this.device);
+	private final ArrayList<VulkanImageView>   imageViews               = new ArrayList<>();
+	private final ArrayList<VulkanImage>       swapchainDepthImages     = new ArrayList<>();
+	private final ArrayList<VulkanImageView>   swapchainDepthImageViews = new ArrayList<>();
+	private final ArrayList<VulkanFramebuffer> framebuffers             = new ArrayList<>();
+	private final ArrayList<VulkanFence>       imagesInFlight           = new ArrayList<>();
+	private int                                currentImage             = 0;
 
 	private final ArrayList<VulkanCommandPool> commandPools             = new ArrayList<>(Vulkan.MAX_FRAMES_IN_FLIGHT);
 	private final ArrayList<VulkanSemaphore>   imageAvailableSemaphores = new ArrayList<>(Vulkan.MAX_FRAMES_IN_FLIGHT);
@@ -146,8 +149,6 @@ public class Vulkan {
 
 		if (!this.memoryAllocator.create()) throw new RuntimeException("Failed to create Memory Allocator");
 
-		createSwapchain();
-
 		this.commandPools.ensureCapacity(Vulkan.MAX_FRAMES_IN_FLIGHT);
 		this.imageAvailableSemaphores.ensureCapacity(Vulkan.MAX_FRAMES_IN_FLIGHT);
 		this.renderFinishedSemaphores.ensureCapacity(Vulkan.MAX_FRAMES_IN_FLIGHT);
@@ -170,6 +171,8 @@ public class Vulkan {
 			this.renderFinishedSemaphores.add(rfs);
 			this.inFlightFences.add(iff);
 		}
+
+		createSwapchain();
 	}
 
 	private void createSwapchain() {
@@ -178,6 +181,18 @@ public class Vulkan {
 			imageView.remove();
 		}
 		this.imageViews.clear();
+
+		for (var depthImageView : this.swapchainDepthImageViews) {
+			depthImageView.destroy();
+			depthImageView.remove();
+		}
+		this.swapchainDepthImageViews.clear();
+
+		for (var depthImage : this.swapchainDepthImages) {
+			depthImage.destroy();
+			depthImage.remove();
+		}
+		this.swapchainDepthImages.clear();
 
 		for (var framebuffer : this.framebuffers) {
 			framebuffer.destroy();
@@ -198,24 +213,33 @@ public class Vulkan {
 				this.renderPass.subpasses.clear();
 				this.renderPass.dependencies.clear();
 
-				var attachment = new VulkanRenderPass.Attachment();
-				attachment.format = this.format.format;
-				this.renderPass.attachments.add(attachment);
+				var colorAttachment = new VulkanRenderPass.Attachment();
+				colorAttachment.format = this.format.format;
+				this.renderPass.attachments.add(colorAttachment);
 
-				var subpass       = new VulkanRenderPass.Subpass();
-				var attachmentRef = new VulkanRenderPass.Subpass.AttachmentRef();
-				attachmentRef.attachment = 0;
-				attachmentRef.layout     = VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-				subpass.colorAttachmentRefs.add(attachmentRef);
+				var depthAttachment = new VulkanRenderPass.Attachment();
+				depthAttachment.format      = VK12.VK_FORMAT_D32_SFLOAT;
+				depthAttachment.storeOp     = VK12.VK_ATTACHMENT_STORE_OP_DONT_CARE;
+				depthAttachment.finalLayout = VK12.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				this.renderPass.attachments.add(depthAttachment);
+
+				var subpass            = new VulkanRenderPass.Subpass();
+				var colorAttachmentRef = new VulkanRenderPass.Subpass.AttachmentRef();
+				colorAttachmentRef.attachment = 0;
+				colorAttachmentRef.layout     = VK12.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				subpass.colorAttachmentRefs.add(colorAttachmentRef);
+				subpass.useDepthStencilAttachment         = true;
+				subpass.depthStencilAttachment.attachment = 1;
+				subpass.depthStencilAttachment.layout     = VK12.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 				this.renderPass.subpasses.add(subpass);
 
 				var dependency = new VulkanRenderPass.Dependency();
 				dependency.srcSubpass    = VK12.VK_SUBPASS_EXTERNAL;
 				dependency.dstSubpass    = 0;
-				dependency.srcStageMask  = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				dependency.srcStageMask  = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK12.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 				dependency.srcAccessMask = 0;
-				dependency.dstStageMask  = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-				dependency.dstAccessMask = VK12.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				dependency.dstStageMask  = VK12.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK12.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+				dependency.dstAccessMask = VK12.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK12.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 				this.renderPass.dependencies.add(dependency);
 			}
 			if (!this.renderPass.create()) throw new RuntimeException("Failed to create Vulkan RenderPass");
@@ -235,6 +259,8 @@ public class Vulkan {
 		if (!this.swapchain.create()) throw new RuntimeException("Failed to create Vulkan Swapchain");
 
 		this.imageViews.ensureCapacity(this.swapchain.getNumImages());
+		this.swapchainDepthImages.ensureCapacity(this.swapchain.getNumImages());
+		this.swapchainDepthImageViews.ensureCapacity(this.swapchain.getNumImages());
 		this.framebuffers.ensureCapacity(this.swapchain.getNumImages());
 		for (int i = 0; i < this.swapchain.getNumImages(); ++i) {
 			var imageView = new VulkanImageView(this.device, this.swapchain.getImage(i));
@@ -242,8 +268,25 @@ public class Vulkan {
 			if (!imageView.create()) throw new RuntimeException("Failed to create Vulkan ImageView");
 			this.imageViews.add(imageView);
 
+			var depthBufferImage = new VulkanImage(this.memoryAllocator);
+			depthBufferImage.format = VK12.VK_FORMAT_D32_SFLOAT;
+			depthBufferImage.usage  = VK12.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+			depthBufferImage.extent.width  = this.swapchain.width;
+			depthBufferImage.extent.height = this.swapchain.height;
+			if (!depthBufferImage.create()) throw new RuntimeException("Failed to create Vulkan Image");
+			this.swapchainDepthImages.add(depthBufferImage);
+
+			var depthBufferImageView = new VulkanImageView(this.device, depthBufferImage);
+			depthBufferImageView.format = VK12.VK_FORMAT_D32_SFLOAT;
+
+			depthBufferImageView.subresourceRange.aspectMask = VK12.VK_IMAGE_ASPECT_DEPTH_BIT;
+			if (!depthBufferImageView.create()) throw new RuntimeException("Failed to create Vulkan ImageView");
+			this.swapchainDepthImageViews.add(depthBufferImageView);
+
 			var framebuffer = new VulkanFramebuffer(this.device, this.renderPass);
 			framebuffer.attachments.add(imageView);
+			framebuffer.attachments.add(depthBufferImageView);
 			framebuffer.width  = this.swapchain.width;
 			framebuffer.height = this.swapchain.height;
 			if (!framebuffer.create()) throw new RuntimeException("Failed to create Vulkan Framebuffers");
@@ -253,6 +296,28 @@ public class Vulkan {
 		this.imagesInFlight.clear();
 		this.imagesInFlight.ensureCapacity(this.swapchain.getNumImages());
 		for (int i = 0; i < this.swapchain.getNumImages(); ++i) this.imagesInFlight.add(null);
+
+		{
+			var currentCommandPool = getCommandPool(this.currentFrame);
+			currentCommandPool.reset();
+			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
+			if (currentCommandBuffer.begin()) {
+				var imageMemoryBarriers = new VulkanImageMemoryBarrier[this.swapchain.imageCount];
+				for (int i = 0; i < this.swapchain.imageCount; ++i) imageMemoryBarriers[i] = new VulkanImageMemoryBarrier(0,
+						VK12.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK12.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+						VK12.VK_QUEUE_FAMILY_IGNORED, VK12.VK_QUEUE_FAMILY_IGNORED, VK12.VK_IMAGE_LAYOUT_UNDEFINED,
+						VK12.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, this.swapchainDepthImages.get(i),
+						new VulkanImageSubresourceRange(VK12.VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1));
+
+				currentCommandBuffer.cmdPipelineBarrier(VK12.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK12.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0,
+						null, null, imageMemoryBarriers);
+
+				currentCommandBuffer.end();
+
+				this.graphicsQueue.submitCommandBuffers(new VulkanCommandBuffer[] { currentCommandBuffer }, null, null, null, null);
+				this.graphicsQueue.waitIdle();
+			}
+		}
 
 		this.recreateSwapchain = false;
 	}
@@ -323,75 +388,78 @@ public class Vulkan {
 	}
 
 	public void testVulkan(Window window) {
-		var vertexShader = """
-				#version 450
-
-				layout(location = 0) in vec4 inPosition;
-				layout(location = 1) in vec2 inUV;
-
-				layout(location = 0) out vec2 outUV;
-
-				layout(set = 0, binding = 0) uniform UniformBufferObject {
-					mat4 model;
-					mat4 view;
-					mat4 proj;
-				} ubo;
-
-				void main() {
-				    gl_Position = ubo.proj * ubo.view * ubo.model * inPosition;
-				    outUV = inUV;
-				}
-								""";
-
-		var fragmentShader = """
-				#version 450
-
-				layout(location = 0) in vec2 inUV;
-
-				layout(location = 0) out vec4 outColor;
-
-				layout(set = 0, binding = 1) uniform sampler2D textureSampler;
-
-				void main() {
-				    outColor = texture(textureSampler, inUV);
-				}
-								""";
-
-		long shadercCompiler          = Shaderc.shaderc_compiler_initialize();
-		long shadercAdditionalOptions = Shaderc.shaderc_compile_options_initialize();
-
-		long vertexShaderResult = Shaderc.shaderc_compile_into_spv(shadercCompiler, vertexShader, Shaderc.shaderc_glsl_vertex_shader, "shader.vert",
-				"main", shadercAdditionalOptions);
-		if (Shaderc.shaderc_result_get_compilation_status(vertexShaderResult) != Shaderc.shaderc_compilation_status_success) {
-			Reference.LOGGER.error(Shaderc.shaderc_result_get_error_message(vertexShaderResult));
-			throw new RuntimeException("Failed to compile vertex shader");
-		}
-
-		long fragmentShaderResult = Shaderc.shaderc_compile_into_spv(shadercCompiler, fragmentShader, Shaderc.shaderc_glsl_fragment_shader,
-				"shader.frag", "main", shadercAdditionalOptions);
-		if (Shaderc.shaderc_result_get_compilation_status(fragmentShaderResult) != Shaderc.shaderc_compilation_status_success) {
-			Reference.LOGGER.error(Shaderc.shaderc_result_get_error_message(fragmentShaderResult));
-			throw new RuntimeException("Failed to compile fragment shader");
-		}
-
 		var vertexShaderModule   = new VulkanShaderModule(this.device);
 		var fragmentShaderModule = new VulkanShaderModule(this.device);
 
-		var    pVertexShaderCode = Shaderc.shaderc_result_get_bytes(vertexShaderResult);
-		byte[] vertexShaderCode  = new byte[pVertexShaderCode.capacity()];
-		pVertexShaderCode.get(vertexShaderCode);
-		vertexShaderModule.code = vertexShaderCode;
+		{
+			var vertexShader = """
+					#version 450
 
-		var    pFragmentShaderCode = Shaderc.shaderc_result_get_bytes(fragmentShaderResult);
-		byte[] fragmentShaderCode  = new byte[pFragmentShaderCode.capacity()];
-		pFragmentShaderCode.get(fragmentShaderCode);
-		fragmentShaderModule.code = fragmentShaderCode;
+					layout(location = 0) in vec4 inPosition;
+					layout(location = 1) in vec2 inUV;
 
-		Shaderc.shaderc_result_release(vertexShaderResult);
-		Shaderc.shaderc_result_release(fragmentShaderResult);
+					layout(location = 0) out vec2 outUV;
 
-		Shaderc.shaderc_compile_options_release(shadercAdditionalOptions);
-		Shaderc.shaderc_compiler_release(shadercCompiler);
+					layout(set = 0, binding = 0) uniform UniformBufferObject {
+						mat4 model;
+						mat4 projView;
+					} ubo;
+
+					void main() {
+						vec4 worldPosition = /*ubo.model **/ inPosition;
+					    gl_Position = /*ubo.projView **/ worldPosition;
+					    outUV = inUV;
+					}
+									""";
+
+			var fragmentShader = """
+					#version 450
+
+					layout(location = 0) in vec2 inUV;
+
+					layout(location = 0) out vec4 outColor;
+
+					layout(set = 0, binding = 1) uniform sampler2D textureSampler;
+
+					void main() {
+					    outColor = texture(textureSampler, inUV);
+					}
+									""";
+
+			long shadercCompiler          = Shaderc.shaderc_compiler_initialize();
+			long shadercAdditionalOptions = Shaderc.shaderc_compile_options_initialize();
+
+			long vertexShaderResult = Shaderc.shaderc_compile_into_spv(shadercCompiler, vertexShader, Shaderc.shaderc_glsl_vertex_shader,
+					"shader.vert", "main", shadercAdditionalOptions);
+			if (Shaderc.shaderc_result_get_compilation_status(vertexShaderResult) != Shaderc.shaderc_compilation_status_success) {
+				Reference.LOGGER.error(Shaderc.shaderc_result_get_error_message(vertexShaderResult));
+				throw new RuntimeException("Failed to compile vertex shader");
+			}
+
+			long fragmentShaderResult = Shaderc.shaderc_compile_into_spv(shadercCompiler, fragmentShader, Shaderc.shaderc_glsl_fragment_shader,
+					"shader.frag", "main", shadercAdditionalOptions);
+			if (Shaderc.shaderc_result_get_compilation_status(fragmentShaderResult) != Shaderc.shaderc_compilation_status_success) {
+				Reference.LOGGER.error(Shaderc.shaderc_result_get_error_message(fragmentShaderResult));
+				throw new RuntimeException("Failed to compile fragment shader");
+			}
+
+			var pVertexShaderCode = Shaderc.shaderc_result_get_bytes(vertexShaderResult);
+			var vertexShaderCode  = new byte[pVertexShaderCode.capacity()];
+			pVertexShaderCode.get(vertexShaderCode);
+			vertexShaderModule.code = vertexShaderCode;
+
+			var pFragmentShaderCode = Shaderc.shaderc_result_get_bytes(fragmentShaderResult);
+
+			var fragmentShaderCode = new byte[pFragmentShaderCode.capacity()];
+			pFragmentShaderCode.get(fragmentShaderCode);
+			fragmentShaderModule.code = fragmentShaderCode;
+
+			Shaderc.shaderc_result_release(vertexShaderResult);
+			Shaderc.shaderc_result_release(fragmentShaderResult);
+
+			Shaderc.shaderc_compile_options_release(shadercAdditionalOptions);
+			Shaderc.shaderc_compiler_release(shadercCompiler);
+		}
 
 		if (!vertexShaderModule.create()) throw new RuntimeException("Failed to create Vulkan ShaderModule");
 		if (!fragmentShaderModule.create()) throw new RuntimeException("Failed to create Vulkan ShaderModule");
@@ -433,7 +501,7 @@ public class Vulkan {
 		if (!descriptorPool.create()) throw new RuntimeException("Failed to create Vulkan DescriptorPool");
 
 		var meshBuffer = new VulkanBuffer(this.memoryAllocator);
-		meshBuffer.size   = 120;
+		meshBuffer.size   = 240;
 		meshBuffer.usage |= VK12.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK12.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 		if (!meshBuffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
 
@@ -458,17 +526,26 @@ public class Vulkan {
 
 			var mappedMemory = stagingBuffer.mapMemory();
 
-			float[] vertices = new float[] { 0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, -0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
-					1.0f, -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f };
-			int[]   indices  = new int[] { 0, 1, 2, 2, 3, 0 };
+			float[] vertices = new float[] {
+					-0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 1.0f,
+					0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 1.0f,
+					0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+					-0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f,
+					
+					-0.3f, -0.3f, 0.0f, 1.0f, 1.0f, 1.0f,
+					0.3f, -0.3f, 0.0f, 1.0f, 0.0f, 1.0f,
+					0.3f, 0.3f, 0.0f, 1.0f, 0.0f, 0.0f,
+					-0.3f, 0.3f, 0.0f, 1.0f, 1.0f, 0.0f };
+			int[]   indices  = new int[] { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 };
 			byte[]  pixels   = new byte[] { -1, 0, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, 0, 0, -1 };
 			mappedMemory.asFloatBuffer().put(0, vertices);
-			mappedMemory.asIntBuffer().put(24, indices);
+			mappedMemory.asIntBuffer().put(48, indices);
 			mappedMemory.put((int) Math.min(meshBuffer.size, Integer.MAX_VALUE), pixels);
 
 			stagingBuffer.unmapMemory();
 
-			var currentCommandPool   = getCommandPool(this.currentFrame);
+			var currentCommandPool = getCommandPool(this.currentFrame);
+			currentCommandPool.reset();
 			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
 			if (currentCommandBuffer.begin()) {
 				currentCommandBuffer.cmdCopyBuffer(stagingBuffer, meshBuffer, new VulkanBufferCopy[] { new VulkanBufferCopy(0, 0, meshBuffer.size) });
@@ -510,7 +587,7 @@ public class Vulkan {
 		}
 
 		var uniformBuffer = new VulkanBuffer(this.memoryAllocator);
-		uniformBuffer.size         = 192 * Vulkan.MAX_FRAMES_IN_FLIGHT;
+		uniformBuffer.size         = 128 * Vulkan.MAX_FRAMES_IN_FLIGHT;
 		uniformBuffer.usage       |= VK12.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 		uniformBuffer.memoryUsage  = Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
 		if (!uniformBuffer.create()) throw new RuntimeException("Failed to create Vulkan Buffer");
@@ -522,7 +599,7 @@ public class Vulkan {
 		var writeDescriptorSets = new VulkanDescriptorSet.WriteDescriptorSet[Vulkan.MAX_FRAMES_IN_FLIGHT * 2];
 		for (int i = 0; i < Vulkan.MAX_FRAMES_IN_FLIGHT; ++i)
 			writeDescriptorSets[i] = new VulkanDescriptorSet.WriteDescriptorSet(descriptorSets.get(i), 0, 0, VK12.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-					1, null, new VulkanDescriptorSet.WriteDescriptorSet.BufferInfo(uniformBuffer, 192 * i, 192), null);
+					1, null, new VulkanDescriptorSet.WriteDescriptorSet.BufferInfo(uniformBuffer, 128 * i, 128), null);
 		for (int i = Vulkan.MAX_FRAMES_IN_FLIGHT; i < Vulkan.MAX_FRAMES_IN_FLIGHT * 2; ++i)
 			writeDescriptorSets[i] = new VulkanDescriptorSet.WriteDescriptorSet(descriptorSets.get(i - Vulkan.MAX_FRAMES_IN_FLIGHT), 1, 0,
 					VK12.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, new VulkanDescriptorSet.WriteDescriptorSet.ImageInfo(textureImageSampler,
@@ -533,8 +610,16 @@ public class Vulkan {
 
 		while (!window.shouldClose()) {
 			Matrix4f modelMatrix = new Matrix4f(new Quaternion(new Vec3f(0.0f, 0.0f, 1.0f), System.nanoTime() / 1e9f * 180, true));
-			Matrix4f viewMatrix  = Matrix4f.translate(0.0f, 0.0f, -1.0f);
-			Matrix4f projMatrix  = Matrix4f.viewboxMatrix(70.0f, (float) this.swapchain.width / this.swapchain.height, 0.01f, 1000.0f);
+			Matrix4f viewMatrix  = new Matrix4f();
+			try (var stack = MemoryStack.stackPush()) {
+				var buf = stack.mallocFloat(16);
+				buf.put(0, new float[] { 0.5773502692f, -0.5773502692f, -0.3333333333333f, 2.0f, 0.5773502692f, 0.5773502692f, -0.333333333333f, 2.0f,
+						0.5773502692f, 0.0f, 0.666666666666666f, 2.0f, 0.0f, 0.0f, 0.0f, 1.0f });
+				viewMatrix.read(buf, false);
+			}
+			Matrix4f projMatrix     = Matrix4f.viewboxMatrix(70.0f, (float) this.swapchain.width / this.swapchain.height, 0.01f, 1000.0f);
+			Matrix4f projViewMatrix = projMatrix.copy();
+			projViewMatrix.multiply(viewMatrix);
 
 			var buf = MemoryUtil.memAllocFloat(48);
 			{
@@ -543,15 +628,11 @@ public class Vulkan {
 			}
 			{
 				var buff = buf.slice(16, 16);
-				viewMatrix.write(buff, false);
-			}
-			{
-				var buff = buf.slice(32, 16);
-				projMatrix.write(buff, false);
+				projViewMatrix.write(buff, false);
 			}
 
 			var mappedUniformMemory = uniformBuffer.mapMemory();
-			mappedUniformMemory.put(192 * this.currentFrame, MemoryUtil.memByteBuffer(buf), 0, 192);
+			mappedUniformMemory.put(128 * this.currentFrame, MemoryUtil.memByteBuffer(buf), 0, 128);
 			uniformBuffer.unmapMemory();
 
 			MemoryUtil.memFree(buf);
@@ -563,7 +644,8 @@ public class Vulkan {
 			var currentCommandBuffer = currentCommandPool.getCommandBuffer(VK12.VK_COMMAND_BUFFER_LEVEL_PRIMARY, 0);
 			if (currentCommandBuffer.begin()) {
 				currentCommandBuffer.cmdBeginRenderPass(this.renderPass, this.framebuffers.get(this.currentImage), 0, 0, this.swapchain.width,
-						this.swapchain.height, new VulkanClearValue[] { new VulkanClearColorFloat(0.1f, 0.1f, 0.1f, 1.0f) });
+						this.swapchain.height,
+						new VulkanClearValue[] { new VulkanClearColorFloat(0.1f, 0.1f, 0.1f, 1.0f), new VulkanClearDepthStencil(1.0f, 0) });
 
 				currentCommandBuffer.cmdSetViewports(0,
 						new VulkanViewport[] { new VulkanViewport(0.0f, 0.0f, this.swapchain.width, this.swapchain.height) });
@@ -571,10 +653,10 @@ public class Vulkan {
 				currentCommandBuffer.cmdSetLineWidth(1.0f);
 				currentCommandBuffer.cmdBindPipeline(graphicsPipeline);
 				currentCommandBuffer.cmdBindVertexBuffers(0, new VulkanBuffer[] { meshBuffer }, new long[] { 0 });
-				currentCommandBuffer.cmdBindIndexBuffer(meshBuffer, 96, VK12.VK_INDEX_TYPE_UINT32);
+				currentCommandBuffer.cmdBindIndexBuffer(meshBuffer, 192, VK12.VK_INDEX_TYPE_UINT32);
 				currentCommandBuffer.cmdBindDescriptorSets(VK12.VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0,
 						new VulkanDescriptorSet[] { descriptorSets.get(this.currentFrame) }, null);
-				currentCommandBuffer.cmdDrawIndexed(6, 1, 0, 0, 0);
+				currentCommandBuffer.cmdDrawIndexed(12, 1, 0, 0, 0);
 
 				currentCommandBuffer.cmdEndRenderPass();
 				currentCommandBuffer.end();

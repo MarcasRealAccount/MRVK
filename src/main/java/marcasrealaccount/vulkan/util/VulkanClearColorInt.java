@@ -23,7 +23,7 @@ public class VulkanClearColorInt extends VulkanClearValue {
 	public void put(VkClearValue clearValue) {
 		try (var stack = MemoryStack.stackPush()) {
 			var pColor = stack.mallocInt(4);
-			pColor.put(new int[] { this.r, this.g, this.b, this.a });
+			pColor.put(0, new int[] { this.r, this.g, this.b, this.a });
 			if (this.unsigned)
 				clearValue.color().uint32(pColor);
 			else

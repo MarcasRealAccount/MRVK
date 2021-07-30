@@ -137,7 +137,7 @@ public class VulkanRenderPass extends VulkanHandle<Long> {
 		public final ArrayList<AttachmentRef> attachmentRefs            = new ArrayList<>();
 		public final ArrayList<AttachmentRef> colorAttachmentRefs       = new ArrayList<>();
 		public final ArrayList<AttachmentRef> resolveAttachmentRefs     = new ArrayList<>();
-		public final boolean                  useDepthStencilAttachment = false;
+		public boolean                        useDepthStencilAttachment = false;
 		public final AttachmentRef            depthStencilAttachment    = new AttachmentRef();
 		public final ArrayList<Integer>       preserveAttachments       = new ArrayList<>();
 

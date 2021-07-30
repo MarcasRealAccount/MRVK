@@ -398,7 +398,7 @@ public class VulkanGraphicsPipeline extends VulkanPipeline {
 		public boolean              depthWriteEnable      = true;
 		public int                  depthCompareOp        = VK12.VK_COMPARE_OP_LESS;
 		public boolean              depthBoundsTestEnable = false;
-		public boolean              stencilTestEnable     = true;
+		public boolean              stencilTestEnable     = false;
 		public final StencilOpState front                 = new StencilOpState();
 		public final StencilOpState back                  = new StencilOpState();
 		public float                minDepthBounds        = 0.0f;

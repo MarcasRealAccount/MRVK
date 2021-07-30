@@ -17,7 +17,7 @@ public class VulkanClearColorFloat extends VulkanClearValue {
 	public void put(VkClearValue clearValue) {
 		try (var stack = MemoryStack.stackPush()) {
 			var pColor = stack.mallocFloat(4);
-			pColor.put(new float[] { this.r, this.g, this.b, this.a });
+			pColor.put(0, new float[] { this.r, this.g, this.b, this.a });
 			clearValue.color().float32(pColor);
 		}
 	}

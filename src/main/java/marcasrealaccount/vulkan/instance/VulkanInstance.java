@@ -36,9 +36,13 @@ public class VulkanInstance extends VulkanHandle<VkInstance> {
 		if (!validateExtensions(this.extensions)) throw new RuntimeException("One or more instance extensions are invalid");
 		if (!validateLayers(this.layers)) throw new RuntimeException("One or more instance layers are invalid");
 
-		var version      = MinecraftVersion.GAME_VERSION.getReleaseTarget();
-		int versionMajor = Integer.parseInt(version, 0, version.indexOf('.'), 10);
-		int versionMinor = Integer.parseInt(version, version.indexOf('.') + 1, version.length(), 10);
+		var version     = MinecraftVersion.GAME_VERSION.getReleaseTarget();
+		var versions    = version.split(".");
+		var versionsInt = new int[versions.length];
+		for (int i = 0; i < versions.length; ++i) versionsInt[i] = Integer.parseInt(versions[i]);
+		int versionMajor = versionsInt.length > 0 ? versionsInt[0] : 0;
+		int versionMinor = versionsInt.length > 1 ? versionsInt[1] : 0;
+		int versionPatch = versionsInt.length > 2 ? versionsInt[2] : 0;
 		try (var stack = MemoryStack.stackPush()) {
 			var applicationName = stack.UTF8("Minecraft");
 			var engineName      = stack.UTF8("MRVK");
@@ -46,8 +50,8 @@ public class VulkanInstance extends VulkanHandle<VkInstance> {
 			var createInfo      = VkInstanceCreateInfo.mallocStack(stack);
 			var pInstance       = stack.mallocPointer(1);
 
-			appInfo.set(VK12.VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, applicationName, VK12.VK_MAKE_VERSION(versionMajor, versionMinor, 0), engineName,
-					VK12.VK_MAKE_VERSION(Reference.MAJOR, Reference.MINOR, 0), VK12.VK_API_VERSION_1_2);
+			appInfo.set(VK12.VK_STRUCTURE_TYPE_APPLICATION_INFO, 0, applicationName, VK12.VK_MAKE_VERSION(versionMajor, versionMinor, versionPatch),
+					engineName, VK12.VK_MAKE_VERSION(Reference.MAJOR, Reference.MINOR, 0), VK12.VK_API_VERSION_1_2);
 
 			long pNext = 0;
 			if (VulkanDebug.isEnabled()) {
